@@ -30,14 +30,15 @@
 - Use try catch error handling & cover security standards
 - Use `code-reviewer` agent to review code after every implementation
 
-## Pre-commit/Push Rules
+## Quy tắc trước khi Commit/Push
 
-- Run linting before commit
-- Run tests before push (DO NOT ignore failed tests just to pass the build or github actions)
-- Keep commits focused on the actual code changes
-- **DO NOT** commit and push any confidential information (such as dotenv files, API keys, database credentials, etc.) to git repository!
-- **Environment Variables**: Do not use local `.env` files in subfolders (such as `api/` or `web/`). A single `.env` file must be used at the root level of the project. Backend and Frontend codebases must read this shared root `.env` file.
-- Create clean, professional commit messages without AI references. Use conventional commit format.
+- **Kiểm tra Lint:** Chạy linting trước khi thực hiện commit.
+- **Kiểm tra Tests:** Chạy các bài kiểm thử (tests) trước khi push (TUYỆT ĐỐI KHÔNG bỏ qua các bài test lỗi để vượt qua build hay github actions).
+- **Phạm vi Commit:** Giữ các commit tập trung và khớp với các thay đổi mã nguồn thực tế.
+- **Bảo mật thông tin:** **TUYỆT ĐỐI KHÔNG** commit và push bất kỳ thông tin nhạy cảm nào (như tệp `.env`, API keys, database credentials, v.v.) lên Git repository!
+- **Biến môi trường:** Không sử dụng các tệp `.env` cục bộ trong các thư mục con (như `api/` hoặc `web/`). Một tệp `.env` duy nhất phải được dùng tại thư mục gốc của dự án. Cả mã nguồn Backend và Frontend đều phải đọc từ tệp `.env` gốc này.
+- **Tiếng Việt có dấu đầy đủ:** **TUYỆT ĐỐI KHÔNG** sử dụng tiếng Việt không có dấu trong bất kỳ thông điệp commit, tài liệu đặc tả, bình luận trong mã nguồn (code comments) hay trong bất kỳ cuộc hội thoại nào. Mọi văn bản tiếng Việt đều phải có dấu đầy đủ, chuẩn chính tả và đúng ngữ pháp tiếng Việt.
+- **Thông điệp Commit:** Tạo các thông điệp commit sạch sẽ, chuyên nghiệp, không đề cập đến AI, tuân thủ đúng định dạng Conventional Commits bằng tiếng Việt có dấu đầy đủ.
 
 ## Code Implementation
 
