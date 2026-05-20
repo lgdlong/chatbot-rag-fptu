@@ -13,7 +13,6 @@ Tài liệu này đóng vai trò là bản thiết kế lộ trình phát triể
 | **Phase 3** | Xây dựng Pipeline Ingestion & Gemini Multimodal Embedding | **10%** | **ĐANG TRIỂN KHAI** | Tuần 4 - 5 |
 | **Phase 4** | Phát triển Nhân RAG Chatbot, SSE Streaming & Citations | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 6 - 7 |
 | **Phase 5** | Dashboard Phân Tích & Giám Sát Chi Phí API cho Giảng Viên | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 8 |
-| **Phase 6** | Thực nghiệm so sánh RAG vs Fine-tuning & Đánh giá luận văn | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 9 - 10 |
 
 ---
 
@@ -75,18 +74,3 @@ Tài liệu này đóng vai trò là bản thiết kế lộ trình phát triể
   * [ ] Xây dựng Dashboard quản lý chi phí cho Admin: Đo lường số token tiêu thụ hàng tuần, tính toán chi phí API của từng môn học / từng Tenant.
   * [ ] Tối ưu hóa caching (Redis/In-memory) các câu hỏi phổ biến để giảm chi phí gọi LLM ngoài.
 * **Tiêu chí hoàn thành:** Hiển thị trực quan biểu đồ tần suất câu hỏi, danh sách downvote và báo cáo chi phí chính xác.
-
----
-
-### 📌 Giai đoạn 6: Thực Nghiệm Đánh Giá Luận Văn (RAG vs Fine-tuning) (Đã lên kế hoạch)
-* **Mục tiêu:** Đo đạc các chỉ số khoa học để hoàn thành báo cáo thực nghiệm so sánh RAG và Fine-tuning.
-* **Chi tiết công việc:**
-  * [ ] Chuẩn bị bộ dữ liệu đánh giá chuẩn (Test set): **50 câu hỏi** đa dạng kèm **câu trả lời chuẩn (Ground Truth)** được chuẩn bị sẵn bởi chuyên gia môn học.
-  * [ ] Thiết lập hệ thống benchmark đo lường:
-    * Độ chính xác nội dung dữ kiện (Precision, Recall).
-    * Mức độ ảo tưởng (Hallucination rate).
-    * Thời gian phản hồi (Time to First Token & Total Latency).
-    * Chi phí tài chính (Cost per query).
-  * [ ] Thực hiện Fine-tune mô hình nhỏ (như Llama-3-8B hoặc PhoGPT) trên bộ dataset môn học để đối chiếu.
-  * [ ] Xuất bảng biểu, biểu đồ so sánh chi tiết để nạp vào tài liệu luận văn tốt nghiệp.
-* **Tiêu chí hoàn thành:** Hoàn tất báo cáo thực nghiệm với đầy đủ số liệu chứng minh tính ưu việt của mô hình RAG đề xuất.

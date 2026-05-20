@@ -62,7 +62,7 @@ Khi làm việc trong môi trường Monorepo, Agent cần chỉ định chính 
 
 ## 4. Nguyên Tắc Lập Trình & Tích Hợp RAG Cốt Lõi
 
-Để giữ vững tính nhất quán của đề tài nghiên cứu so sánh RAG và Fine-tuning, các Agent khi phát triển tính năng cần chú ý:
+Hệ thống RAG phục vụ kho tài liệu học tiếng Việt tại Đại học FPT. Các Agent khi phát triển tính năng cần chú ý:
 
 1.  **Độ Chính Xác của RAG:** Ưu tiên sử dụng mô hình nhúng tiếng Việt **`BAAI/bge-vi-base`** cho các tác vụ tìm kiếm ngữ nghĩa thô và văn bản bài giảng.
 2.  **Hỗ Trợ Đa Phương Thức (Multimodal):** Tích hợp luồng nhúng video/âm thanh bài giảng thông qua **`Gemini Embedding 2`** (sử dụng vector 3072 chiều) và lưu trữ kèm timestamp.
