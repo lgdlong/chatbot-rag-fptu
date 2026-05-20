@@ -124,26 +124,39 @@ func main() {
 }
 
 func processDocument(payload JobPayload, qClient *qdrant.Client) error {
-	// Kiểm tra sự tồn tại của file PDF gốc
-	if _, err := os.Stat(payload.FilePath); os.IsNotExist(err) {
-		return fmt.Errorf("file does not exist: %s", payload.FilePath)
-	}
+	filePath := payload.FilePath
 
 	// Tạo thư mục chunks tạm thời
+	// Đối với môi trường phát triển cục bộ, nếu thư mục "../../api" tồn tại, chúng ta sẽ lưu vào "../../api/uploads/chunks"
 	chunksDir := "./uploads/chunks"
+	if _, err := os.Stat("../../api"); err == nil {
+		chunksDir = "../../api/uploads/chunks"
+		// Ánh xạ đường dẫn tệp tin gốc sang thư mục api/uploads
+		if len(filePath) >= 9 && filePath[:9] == "./uploads" {
+			filePath = "../../api/uploads" + filePath[9:]
+		} else if len(filePath) >= 7 && filePath[:7] == "uploads" {
+			filePath = "../../api/uploads" + filePath[7:]
+		}
+	}
+
+	// Kiểm tra sự tồn tại của file PDF gốc
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return fmt.Errorf("file does not exist: %s", filePath)
+	}
+
 	if err := os.MkdirAll(chunksDir, 0755); err != nil {
 		return fmt.Errorf("failed to create chunks dir: %v", err)
 	}
 
 	// 1. Sử dụng pdfcpu để trích xuất/cắt nhỏ PDF thành các file 1 trang
-	log.Printf("[pdfcpu] Splitting PDF: %s", payload.FilePath)
-	err := api.SplitFile(payload.FilePath, chunksDir, 1, nil)
+	log.Printf("[pdfcpu] Splitting PDF: %s", filePath)
+	err := api.SplitFile(filePath, chunksDir, 1, nil)
 	if err != nil {
 		return fmt.Errorf("pdfcpu split error: %v", err)
 	}
 
 	// Quét các file PDF trang đơn đã được tạo
-	baseName := filepath.Base(payload.FilePath)
+	baseName := filepath.Base(filePath)
 	baseNameWithoutExt := baseName[:len(baseName)-len(filepath.Ext(baseName))]
 	
 	pageNumber := 1
@@ -204,7 +217,7 @@ func processDocument(payload JobPayload, qClient *qdrant.Client) error {
 	}
 
 	// 4. Dọn dẹp file PDF gốc nháp
-	_ = os.Remove(payload.FilePath)
+	_ = os.Remove(filePath)
 	return nil
 }
 
