@@ -10,7 +10,7 @@ Tài liệu này đóng vai trò là bản thiết kế lộ trình phát triể
 | :---: | :--- | :---: | :---: | :---: |
 | **Phase 1** | Khởi tạo Monorepo & Cơ sở dữ liệu Đa trường (Multi-tenant DB) | **100%** | **ĐÃ HOÀN THÀNH** | Tuần 1 |
 | **Phase 2** | Tích hợp Better Auth & Phân quyền Organization Plugin | **60%** | **ĐANG TRIỂN KHAI** | Tuần 2 - 3 |
-| **Phase 3** | Xây dựng Pipeline Ingestion & Gemini Multimodal Embedding | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 4 - 5 |
+| **Phase 3** | Xây dựng Pipeline Ingestion & Gemini Multimodal Embedding | **10%** | **ĐANG TRIỂN KHAI** | Tuần 4 - 5 |
 | **Phase 4** | Phát triển Nhân RAG Chatbot, SSE Streaming & Citations | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 6 - 7 |
 | **Phase 5** | Dashboard Phân Tích & Giám Sát Chi Phí API cho Giảng Viên | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 8 |
 | **Phase 6** | Thực nghiệm so sánh RAG vs Fine-tuning & Đánh giá luận văn | **0%** | **ĐÃ LÊN KẾ HOẠCH** | Tuần 9 - 10 |
@@ -43,10 +43,11 @@ Tài liệu này đóng vai trò là bản thiết kế lộ trình phát triể
 
 ---
 
-### 📌 Giai đoạn 3: Pipeline Tiền Xử Lý & Nhúng Tài Liệu Đa Phương Thức (Đã lên kế hoạch)
-* **Mục tiêu:** Hiện thực hóa tính năng tải lên tài liệu học tập, thực hiện trích xuất nội dung và nhúng vector đa phương thức (Văn bản + Video).
+### 📌 Giai đoạn 3: Pipeline Tiền Xử Lý & Nhúng Tài Liệu Đa Phương Thức (Đang triển khai)
+* **Mục tiêu:** Hiện thực hóa tính năng tải lên tài liệu học tập, xoá tài liệu đã nạp an toàn, thực hiện trích xuất nội dung và nhúng vector đa phương thức (Văn bản + Video).
 * **Chi tiết công việc:**
   * [ ] Xây dựng giao diện Drag & Drop File Upload hỗ trợ PDF, DOCX, Slide PPTX, và Video MP4.
+  * [x] Cho phép xoá tài liệu PDF đã nạp, đồng bộ dọn file chunk và vector trong Qdrant.
   * [ ] Viết bộ phân đoạn (Chunking service): Trích xuất Markdown từ PDF/PPTX, chia phân đoạn slide có overlap.
   * [ ] Tích hợp API **Gemini Embedding 2** để nhúng video ngắn ($\le 120$ giây) thu về vector 3072 chiều.
   * [ ] Khởi chạy và kết nối Cơ sở dữ liệu Vector (**Qdrant** hoặc **ChromaDB**).

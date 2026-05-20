@@ -26,6 +26,7 @@ graph TD
     A --> D(docs/folder_structure.md <br> Cấu trúc thư mục hệ thống)
     A --> E(docs/better_auth_guide.md <br> Cẩm nang Better Auth)
     A --> F(docs/hono_guide.md <br> Cẩm nang Hono.js)
+    A --> G(docs/running_guide.md <br> Hướng dẫn Khởi chạy Hệ thống)
     
     style A fill:#4F46E5,stroke:#312E81,stroke-width:2px,color:#fff
     style B fill:#0EA5E9,stroke:#0369A1,stroke-width:1px,color:#fff
@@ -33,6 +34,7 @@ graph TD
     style D fill:#0EA5E9,stroke:#0369A1,stroke-width:1px,color:#fff
     style E fill:#10B981,stroke:#047857,stroke-width:1px,color:#fff
     style F fill:#10B981,stroke:#047857,stroke-width:1px,color:#fff
+    style G fill:#10B981,stroke:#047857,stroke-width:1px,color:#fff
 ```
 
 ### Chuyên đề phát triển hệ thống
@@ -57,6 +59,8 @@ graph TD
    * Xây dựng Middleware: Xác thực `requireAuth` và cô lập dữ liệu đa trường `requireTenant`.
    * Luồng phản hồi RAG Chat thời gian thực với Server-Sent Events (SSE) streaming.
    * Hướng dẫn viết Health Check API chi tiết và kiểm thử tích hợp không bộ nhớ (In-memory Integration Testing).
+6. **[Hướng dẫn Khởi chạy Hệ thống (System Running Guide)](file:///e:/FPT/Semester_7/SWD392/chatbot-rag-fptu/docs/running_guide.md)**
+   * Hướng dẫn thiết lập môi trường `.env`, khởi chạy Docker Compose hạ tầng (PostgreSQL, Qdrant, Redis), chạy database migrations bằng Prisma, và chạy Backend/Frontend trong chế độ Dev.
 
 ---
 

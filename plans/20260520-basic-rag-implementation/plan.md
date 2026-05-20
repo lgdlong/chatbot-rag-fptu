@@ -970,3 +970,10 @@ func getEnv(key, fallback string) string {
    Sử dụng cURL hoặc Postman gửi file PDF bài giảng và kiểm tra status chuyển đổi từ `PENDING` -> `PROCESSING` -> `COMPLETED`.
 3. **Thực hiện gửi Chat hỏi đáp:**
    Sử dụng Postman / Client gọi `POST /api/v1/chat/send` kiểm tra dữ liệu SSE được stream theo thời gian thực và trả về đúng citations của các Slide bài giảng.
+
+## Review Status
+
+- Delete-path tenant scoping is resolved: the delete handler now requires `activeOrganizationId` and validates course ownership before destructive work.
+- Delete-path idempotency is resolved: missing documents return success and Prisma `P2025` is treated as success.
+- Remaining blocker: make Qdrant deletion tolerant of missing collections or 404s before merge, because the hard-delete flow still aborts before local cleanup when vector state is absent.
+- Next step: rerun the backend build and frontend lint on the touched slice after the Qdrant fallback is added.
