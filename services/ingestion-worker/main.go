@@ -36,6 +36,39 @@ func main() {
 	qdrantURL := getEnv("QDRANT_URL", "localhost:6334") // Note: qdrant client expects host:port for gRPC
 	qdrantKey := os.Getenv("QDRANT_API_KEY")
 
+	// Phân tích cú pháp QDRANT_URL để lấy Host, Port, và UseTLS
+	host := "localhost"
+	port := 6334
+	useTLS := false
+
+	urlStr := qdrantURL
+	if len(urlStr) >= 7 && urlStr[:7] == "http://" {
+		urlStr = urlStr[7:]
+	} else if len(urlStr) >= 8 && urlStr[:8] == "https://" {
+		urlStr = urlStr[8:]
+		useTLS = true
+	}
+
+	// Tách Host và Port
+	lastColon := -1
+	for i := len(urlStr) - 1; i >= 0; i-- {
+		if urlStr[i] == ':' {
+			lastColon = i
+			break
+		}
+	}
+	if lastColon != -1 {
+		host = urlStr[:lastColon]
+		portStr := urlStr[lastColon+1:]
+		if portStr == "6333" {
+			port = 6334 // Tự động ánh xạ cổng HTTP (6333) sang cổng gRPC (6334)
+		} else {
+			fmt.Sscanf(portStr, "%d", &port)
+		}
+	} else {
+		host = urlStr
+	}
+
 	// 1. Kết nối Redis
 	rdb := redis.NewClient(&redis.Options{
 		Addr: fmt.Sprintf("%s:%s", redisHost, redisPort),
@@ -44,9 +77,10 @@ func main() {
 
 	// 2. Kết nối Qdrant gRPC
 	qClient, err := qdrant.NewClient(&qdrant.Config{
-		AnysyncgRPCEndpoint: qdrantURL,
-		APIKey:              qdrantKey,
-		UseTLS:              false,
+		Host:   host,
+		Port:   port,
+		APIKey: qdrantKey,
+		UseTLS: useTLS,
 	})
 	if err != nil {
 		log.Fatalf("[Qdrant] Failed to create client: %v", err)
@@ -146,12 +180,12 @@ func processDocument(payload JobPayload, qClient *qdrant.Client) error {
 		
 		collectionName := "fptu_rag_documents"
 		
-		err = qClient.Upsert(context.Background(), &qdrant.UpsertPoints{
+		_, err = qClient.Upsert(context.Background(), &qdrant.UpsertPoints{
 			CollectionName: collectionName,
 			Points: []*qdrant.PointStruct{
 				{
-					Id:     qdrant.NewIDUUID(uuid.NewString()),
-					Vector: qdrant.NewVector(vector...),
+					Id:      qdrant.NewIDUUID(uuid.NewString()),
+					Vectors: qdrant.NewVectors(vector...),
 					Payload: qdrant.NewValueMap(map[string]interface{}{
 						"organizationId": payload.OrganizationId,
 						"courseId":       payload.CourseId,
@@ -238,16 +272,25 @@ func generateEmbeddingWithRetry(base64Data string, docName string, page int) ([]
 		}
 
 		var result struct {
-			Embedding struct {
+			Embedding *struct {
 				Values []float32 `json:"values"`
 			} `json:"embedding"`
+			Embeddings []struct {
+				Values []float32 `json:"values"`
+			} `json:"embeddings"`
 		}
 
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			return nil, err
 		}
 
-		return result.Embedding.Values, nil
+		if result.Embedding != nil && len(result.Embedding.Values) > 0 {
+			return result.Embedding.Values, nil
+		} else if len(result.Embeddings) > 0 {
+			return result.Embeddings[0].Values, nil
+		}
+
+		return nil, fmt.Errorf("gemini api response does not contain any embedding values")
 	}
 
 	return nil, fmt.Errorf("failed to generate embedding after retries")
