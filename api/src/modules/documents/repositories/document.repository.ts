@@ -31,4 +31,15 @@ export class DocumentRepository {
       where: { id },
     })
   }
+
+  static async updateStatus(id: string, status: string, error?: string) {
+    // If there is an error, we can log it here.
+    if (error) {
+      console.error(`[DocumentRepository] Ingestion error for document ${id}: ${error}`)
+    }
+    return prisma.document.update({
+      where: { id },
+      data: { status },
+    })
+  }
 }
