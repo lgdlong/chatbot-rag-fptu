@@ -22,4 +22,7 @@ export const ENV = {
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
   LOCAL_EMBEDDING_URL: process.env.LOCAL_EMBEDDING_URL || 'http://localhost:8000',
+  REDIS_HOST: process.env.REDIS_HOST || 'localhost',
+  INTERNAL_API_KEY: process.env.INTERNAL_API_KEY || 'super_secret_internal_key_fptu_rag',
+  INTERNAL_API_URL: process.env.INTERNAL_API_URL || 'http://localhost:3000',
 } as const
