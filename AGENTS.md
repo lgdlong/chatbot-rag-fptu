@@ -33,6 +33,11 @@ Thư mục này chứa các cẩm nang hướng dẫn Agent thực hiện các t
 *   `organization-best-practices`: Cấu hình phân quyền tổ chức Multi-tenant.
 *   `two-factor-authentication-best-practices`: Cài đặt xác thực 2 lớp (2FA/TOTP).
 *   `vercel-react-best-practices`: Các kỹ thuật tối ưu hóa hiệu năng React & Next.js từ Vercel.
+*   `sequential-thinking`: Kỹ năng bắt buộc sử dụng để kích hoạt suy nghĩ tuần tự, phân tích sâu và lập luận từng bước (Step-by-step) trước khi thực thi công việc.
+
+> [!IMPORTANT]
+> **Yêu Cầu Bắt Buộc Về Suy Nghĩ Tuần Tự (Sequential Thinking):**
+> Mọi AI Agent khi hoạt động trong repository này **BẮT BUỘC** phải sử dụng kỹ năng `sequential-thinking` (`mcp__reasoning__sequentialthinking`) trong **mọi prompt** để suy luận tuần tự, lập luận chi tiết từng bước, tự sửa lỗi và tối ưu hóa giải pháp trước khi thực hiện bất kỳ hành động viết code hay chỉnh sửa nào.
 
 ---
 

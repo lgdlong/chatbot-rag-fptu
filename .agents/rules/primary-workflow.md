@@ -1,6 +1,7 @@
 # Primary Workflow
 
 **IMPORTANT:** Analyze the skills catalog and activate the skills that are needed for the task during the process.
+**[MANDATORY]** BẮT BUỘC phải sử dụng kỹ năng `sequential-thinking` (sequential thinking) trong **mọi prompt** để suy luận logic chi tiết từng bước trước khi bắt đầu thực thi bất kỳ giai đoạn nào trong luồng công việc dưới đây.
 **IMPORTANT**: Ensure token efficiency while maintaining high quality.
 
 #### 1. Code Implementation

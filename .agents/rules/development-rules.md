@@ -16,7 +16,8 @@
 - Use `psql` bash command to query Postgres database for debugging if needed
 - Use `ai-multimodal` skill for describing details of images, videos, documents, etc. if needed
 - Use `ai-multimodal` skill and `imagemagick` skill for generating and editing images, videos, documents, etc. if needed
-- Use `sequential-thinking` and `debugging` skills for sequential thinking, analyzing code, debugging, etc. if needed
+- **[MANDATORY]** Mọi AI Agent BẮT BUỘC phải sử dụng kỹ năng `sequential-thinking` (sequential thinking) trong **mọi prompt** để suy luận tuần tự, phân tích sâu, lập kế hoạch chi tiết và tự sửa lỗi trước khi viết code hoặc trả lời.
+- Use `debugging` skill for systematic debugging, analyzing code, debugging, etc. if needed
 - **[IMPORTANT]** Follow the codebase structure and code standards in `./docs` during implementation.
 - **[IMPORTANT]** Do not just simulate the implementation or mocking them, always implement the real code.
 
@@ -35,6 +36,7 @@
 - Run tests before push (DO NOT ignore failed tests just to pass the build or github actions)
 - Keep commits focused on the actual code changes
 - **DO NOT** commit and push any confidential information (such as dotenv files, API keys, database credentials, etc.) to git repository!
+- **Environment Variables**: Do not use local `.env` files in subfolders (such as `api/` or `web/`). A single `.env` file must be used at the root level of the project. Backend and Frontend codebases must read this shared root `.env` file.
 - Create clean, professional commit messages without AI references. Use conventional commit format.
 
 ## Code Implementation
