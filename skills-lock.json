@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "sequential-thinking": {
+      "source": "mrgoonie/claudekit-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/sequential-thinking/SKILL.md",
+      "computedHash": "c0157274003e83ae248d4621f169136ecbccd0cba7082814208f24631260250e"
+    }
+  }
+}
