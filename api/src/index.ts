@@ -7,7 +7,16 @@ import { ENV } from './config/env.js'
 
 import { prisma } from './modules/auth/services/db.service.js'
 
+import { ragRouter } from './modules/rag/rag.controller.js'
+import { internalRouter } from './modules/documents/document.internal.controller.js'
+import { chatRouter } from './modules/chat/chat.controller.js'
+
 export const app = new Hono()
+
+// Mount API modules
+app.route('/api/v1/courses', ragRouter)
+app.route('/api/v1/internal', internalRouter)
+app.route('/api/v1/chat', chatRouter)
 
 // Basic CORS setup for local development
 app.use(
