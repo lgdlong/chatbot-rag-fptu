@@ -25,7 +25,7 @@ The root folder provides a `Makefile` to quickly invoke workspace-specific comma
 ### Workspace: Backend API (`api/`)
 - **Working Directory (`Cwd`):** `./api`
 - Initialize and install dependencies: `npm install`
-- Start watch server: `npm run dev` (Runs Hono.js on Port `3000` via `tsx watch`)
+- Start watch server: `npm run dev` (Runs Hono.js on Port `8000` via `tsx watch`)
 - Compile typescript files: `npm run build`
 - Deploy Prisma schema: `npx prisma db push`
 - Generate Prisma client: `npx prisma generate`
@@ -33,7 +33,7 @@ The root folder provides a `Makefile` to quickly invoke workspace-specific comma
 ### Workspace: Frontend Web (`web/`)
 - **Working Directory (`Cwd`):** `./web`
 - Initialize and install dependencies: `npm install`
-- Start development application: `npm run dev` (Runs Next.js on Port `3001` or first open port)
+- Start development application: `npm run dev` (Runs Next.js on Port `3000`)
 - Validate TypeScript & ESLint rules: `npm run lint`
 - Build Next.js production bundle: `npm run build`
 

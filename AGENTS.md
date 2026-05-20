@@ -47,13 +47,13 @@ Khi làm việc trong môi trường Monorepo, Agent cần chỉ định chính 
 
 ### 💻 Thao tác trên Backend API (`api/`)
 *   **Thư mục chạy lệnh (`Cwd`):** `e:\FPT\Semester_7\SWD392\chatbot-rag-fptu\api`
-*   **Khởi chạy server Dev:** `npm run dev` (chạy trên cổng `3000`)
+*   **Khởi chạy server Dev:** `npm run dev` (chạy trên cổng `8000`)
 *   **Biên dịch mã nguồn (Build):** `npm run build`
 *   **Cài đặt thư viện mới:** `npm install <package-name>`
 
 ### 💻 Thao tác trên Frontend Next.js (`web/`)
 *   **Thư mục chạy lệnh (`Cwd`):** `e:\FPT\Semester_7\SWD392\chatbot-rag-fptu\web`
-*   **Khởi chạy ứng dụng Dev:** `npm run dev` (chạy trên cổng `3001` hoặc tự động tìm cổng trống)
+*   **Khởi chạy ứng dụng Dev:** `npm run dev` (chạy trên cổng `3000`)
 *   **Kiểm tra lỗi Lint:** `npm run lint`
 *   **Biên dịch sản phẩm (Build Next.js):** `npm run build`
 *   **Cài đặt thư viện mới:** `npm install <package-name>`

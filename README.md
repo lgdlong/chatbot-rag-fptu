@@ -132,11 +132,11 @@ Thực hiện tuần tự các lệnh sau tại thư mục gốc:
    make prisma-generate
    ```
 3. **Chạy song song Backend và Frontend:**
-   * Trong một terminal mới, chạy Backend API (cổng `3000`):
+   * Trong một terminal mới, chạy Backend API (cổng `8000`):
      ```bash
      make dev-api
      ```
-   * Trong một terminal khác, chạy Frontend Web (cổng `3001`):
+   * Trong một terminal khác, chạy Frontend Web (cổng `3000`):
      ```bash
      make dev-web
      ```

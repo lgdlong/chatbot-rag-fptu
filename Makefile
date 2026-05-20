@@ -1,4 +1,9 @@
-.PHONY: db-up db-down db-logs db-status migrate prisma-generate prisma-studio dev-api dev-web build-api build-web health-check
+.PHONY: db-up db-down db-logs db-status db-reset migrate prisma-generate prisma-studio install dev-api dev-web dev-all worker build-api build-web build-all lint-api lint-web test clean health-check
+
+# Install Dependencies
+install:
+	npm --prefix api install
+	npm --prefix web install
 
 # Database Commands
 db-up:
@@ -12,6 +17,10 @@ db-logs:
 
 db-status:
 	docker compose ps
+
+db-reset:
+	docker compose down -v
+	docker compose up -d
 
 # Prisma Database & Migration Commands
 migrate:
@@ -30,11 +39,41 @@ dev-api:
 dev-web:
 	npm --prefix web run dev
 
+dev-all:
+	@echo "Starting API, Web, and Worker..."
+	@npm --prefix api run dev & \
+	npm --prefix web run dev & \
+	cd services/ingestion-worker && go run main.go
+
+# Ingestion Worker
+worker:
+	cd services/ingestion-worker && go run main.go
+
+# Build Commands
 build-api:
 	npm --prefix api run build
 
 build-web:
 	npm --prefix web run build
 
+build-all: build-api build-web
+
+# Lint Commands
+lint-api:
+	npm --prefix api run lint
+
+lint-web:
+	npm --prefix web run lint
+
+# Test Commands
+test:
+	npm --prefix api run test
+
+# Clean Commands
+clean:
+	rm -rf api/dist web/.next
+	rm -rf api/node_modules/.cache
+
+# Health Check
 health-check:
 	npx tsx --env-file=.env -e "import('./api/src/index.ts').then(m => m.app.request('/api/health').then(r => r.json().then(j => console.log('Response Status:', r.status, '\nResponse Body:\n', JSON.stringify(j, null, 2)))))"

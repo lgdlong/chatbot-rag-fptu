@@ -170,3 +170,8 @@ recordings/
 .agents/state/
 .agents/run/
 
+services/ingestion-worker/*.exe
+*.pdf
+.vscode
+.claude
+
