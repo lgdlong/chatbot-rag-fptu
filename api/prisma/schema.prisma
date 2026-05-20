@@ -1,0 +1,188 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Better Auth Models
+model User {
+  id            String        @id
+  name          String
+  email         String
+  emailVerified Boolean       @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  role          String?
+  banned        Boolean?      @default(false)
+  banReason     String?       @map("ban_reason")
+  banExpires    DateTime?     @map("ban_expires")
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[]
+  chatSessions  ChatSession[]
+
+  @@unique([email])
+  @@map("users")
+}
+
+model Session {
+  id                   String   @id
+  expiresAt            DateTime @map("expires_at")
+  token                String
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+  userId               String   @map("user_id")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganizationId String?  @map("active_organization_id")
+  impersonatedBy       String?  @map("impersonated_by")
+
+  @@unique([token])
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+model Organization {
+  id          String       @id
+  name        String
+  slug        String
+  logo        String?
+  createdAt   DateTime     @map("created_at")
+  metadata    String?
+  members     Member[]
+  invitations Invitation[]
+  courses     Course[]
+
+  @@unique([slug])
+  @@map("organizations")
+}
+
+model Member {
+  id             String       @id
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @map("created_at")
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("members")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime     @map("expires_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  inviterId      String       @map("inviter_id")
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitations")
+}
+
+// Domain Models
+
+// Khóa học / Môn học
+model Course {
+  id             String        @id @default(uuid())
+  code           String        // Ví dụ: SWD392
+  name           String        // Ví dụ: Software Architecture
+  organizationId String        @map("organization_id")
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  documents      Document[]
+  sessions       ChatSession[]
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  @@map("courses")
+}
+
+// Tài liệu môn học
+model Document {
+  id        String   @id @default(uuid())
+  name      String   // Tên file gốc
+  fileUrl   String   @map("file_url") // Đường dẫn lưu trữ vật lý
+  fileType  String   @map("file_type") // pdf, docx, pptx, mp4
+  status    String   // PENDING, PROCESSING, COMPLETED, FAILED
+  courseId  String   @map("course_id")
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("documents")
+}
+
+// Phiên chat của Sinh viên
+model ChatSession {
+  id        String        @id @default(uuid())
+  userId    String        @map("user_id")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String        @map("course_id")
+  course    Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  messages  ChatMessage[]
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@map("chat_sessions")
+}
+
+// Tin nhắn chi tiết
+model ChatMessage {
+  id        String      @id @default(uuid())
+  sessionId String      @map("session_id")
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sender    SenderType  // USER, ASSISTANT
+  content   String      @db.Text
+  citations Json?       // Lưu trữ mảng citation dạng JSON
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@map("chat_messages")
+}
+
+enum SenderType {
+  USER
+  ASSISTANT
+}
