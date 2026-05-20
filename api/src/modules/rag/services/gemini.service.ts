@@ -28,8 +28,10 @@ export class GeminiService {
         return embeddings[0].values
       }
 
-      if (response.embedding?.values) {
-        return response.embedding.values
+      // fallback for older API versions
+      const fallbackEmbeddings = (response as any).embedding
+      if (fallbackEmbeddings?.values) {
+        return fallbackEmbeddings.values
       }
 
       throw new Error('[Gemini] No embedding values found in response.')

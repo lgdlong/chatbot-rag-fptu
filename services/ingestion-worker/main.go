@@ -313,7 +313,7 @@ func updateDocumentStatus(docId string, status string, errorMessage string) {
 	apiURL := getEnv("INTERNAL_API_URL", "http://localhost:3000")
 	internalKey := os.Getenv("INTERNAL_API_KEY")
 
-	url := fmt.Sprintf("%s/api/v1/internal/documents/%s", apiURL, docId)
+	url := fmt.Sprintf("%s/api/internal/documents/%s", apiURL, docId)
 	
 	payload := map[string]string{
 		"status": status,
