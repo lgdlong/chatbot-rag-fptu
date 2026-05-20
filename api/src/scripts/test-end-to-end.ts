@@ -25,6 +25,23 @@ async function main() {
     })
     console.log(`[Prisma] User ready: ${user.name} (${user.id})`)
 
+    // Ensure password credentials exist for user in Account table
+    const passwordHash = '299f315028cd53bed28cf3e9006d6393:ff5ad14a24855e26ff311acadf19af30d112bd83bf5ab6d8d9bb827a6f88c313ade1e3d676b54b50b3384dc58dd812076bb4a7188e98c1b92ea027630b8dfaf1' // SuperPassword123!
+    await prisma.account.upsert({
+      where: { id: 'account-test-e2e-id' },
+      update: {
+        password: passwordHash
+      },
+      create: {
+        id: 'account-test-e2e-id',
+        accountId: 'user-test-e2e-id',
+        providerId: 'credential',
+        userId: 'user-test-e2e-id',
+        password: passwordHash
+      }
+    })
+    console.log(`[Prisma] Account credentials ready for user`)
+
     const org = await prisma.organization.upsert({
       where: { slug: 'fptu-e2e-test-org' },
       update: {},
@@ -84,7 +101,8 @@ async function main() {
 
     // 4. Kết nối Redis và gửi Job vào hàng đợi 'rag:ingestion:queue'
     console.log('[Redis] Enqueueing Ingestion Job to Redis...')
-    const redisClient = new Redis({ host: ENV.REDIS_HOST, port: 6379 })
+    const RedisConstructor = Redis as any
+    const redisClient = new RedisConstructor({ host: ENV.REDIS_HOST, port: 6379 })
     
     const jobPayload = {
       documentId: doc.id,
