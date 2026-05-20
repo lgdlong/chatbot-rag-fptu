@@ -76,7 +76,15 @@ Tài liệu này quy định bộ tiêu chuẩn kỹ thuật, phong cách lập 
 
 ---
 
-## 📦 5. Quy Trình Git & Pull Request (PR)
+## 🧬 5. Quy tắc Toàn vẹn & Đồng bộ Hệ sinh thái RAG
+
+* **Xóa bỏ đồng bộ (Multi-DB Cleanup):** Hành vi `onDelete: Cascade` của Prisma không có hiệu lực với Vector DB. Do đó, logic xóa `Document` ở tầng nghiệp vụ bắt buộc phải gọi API của Vector DB để xóa toàn bộ các vector chunks liên quan theo `document_id` trước khi hoàn tất transaction.
+* **Đảm bảo bộ lọc Tenant trên Vector DB:** Mọi truy vấn tìm kiếm ngữ nghĩa (Semantic Search) trên Qdrant/ChromaDB bắt buộc phải truyền kèm bộ lọc `Filter` theo `organization_id` lấy từ session, khớp 100% với tư duy cô lập dữ liệu của tầng RDB.
+* **Chỉ mục hiệu năng (Performance Indexing):** Tất cả các bảng nghiệp vụ bắt buộc phải khai báo `@@index` cho trường `organizationId` hoặc các cặp `@@index([organizationId, liên_kết_khác])` để tối ưu tốc độ truy vấn Multi-tenant.
+
+---
+
+## 📦 6. Quy Trình Git & Pull Request (PR)
 
 * **Quy tắc đặt tên nhánh (Branch Naming):**
   * Nhánh tính năng mới: `feature/ten-tinh-nang` (ví dụ: `feature/google-oauth`).

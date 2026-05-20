@@ -1,6 +1,6 @@
 # TÀI LIỆU YÊU CẦU HỆ THỐNG (SYSTEM REQUIREMENTS SPECIFICATION - SRS)
 
-Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống **FPTU Chatbot RAG**. Tài liệu được thiết kế nhằm định hình phạm vi phát triển sản phẩm kỹ thuật và làm cơ sở đối chiếu cho phần thực nghiệm.
+Tài liệu này đặc tả chi tiết các yêu cầu chức năng và phi chức năng của hệ thống **FPTU Chatbot RAG**. Tài liệu được thiết kế nhằm định hình phạm vi phát triển sản phẩm kỹ thuật.
 
 ---
 

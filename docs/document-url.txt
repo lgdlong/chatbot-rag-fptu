@@ -1,0 +1,24 @@
+https://hono.dev/llms.txt
+https://hono.dev/examples/swagger-ui
+https://hono.dev/examples/zod-openapi
+https://hono.dev/docs/guides/validation
+https://hono.dev/docs/guides/middleware
+https://hono.dev/docs/concepts/web-standard
+https://hono.dev/docs/helpers/streaming
+https://hono.dev/examples/better-auth
+
+https://www.prisma.io/docs/guides/frameworks/hono
+
+https://better-auth.com/llms.txt
+https://better-auth.com/docs/basic-usage
+https://better-auth.com/docs/adapters/postgresql
+https://better-auth.com/docs/authentication/email-password
+https://better-auth.com/docs/authentication/google
+https://better-auth.com/docs/plugins/admin
+https://better-auth.com/docs/plugins/open-api
+https://better-auth.com/docs/plugins/organization
+
+## Lưu Ý Quan Trọng
+
+- Thêm ký tự `#schema` ở cuối đường dẫn URL để xem trực tiếp cấu trúc bảng cơ sở dữ liệu (schema) trong tài liệu hướng dẫn của Better Auth cho từng chủ đề tương ứng. 
+- Ví dụ: `https://better-auth.com/docs/basic-usage#schema` để xem schema cơ bản, hoặc `https://better-auth.com/docs/plugins/admin#schema` để xem schema mở rộng cho plugin Admin.
