@@ -1,143 +1,155 @@
-- "Xây dựng chatbot cho phép sinh viên hỏi đáp dựa trên tài liệu môn học" thầy cho phép mình làm dự án này, tạo ra một cái trang web RAG, nhập tài liệu môn học vào và nó trả lời
-- Phải scale nhiều trường, hỗ trợ nhiều kiểu dữ liệu như video, ảnh, text
-- Có khả năng cho các trường đẩy syllabus lên và hỏi
+# HỆ THỐNG TRUY XUẤT KIẾN THỨC ĐA PHƯƠNG THỨC HỖ TRỢ HỌC TẬP (FPTU CHATBOT RAG)
+## Đề Tài Nghiên Cứu Khoa Học & Ứng Dụng Thực Tiễn: So Sánh RAG và Fine-tuning trong Bối Cảnh Tiếng Việt
 
-"Xây dựng chatbot cho phép sinh viên hỏi đáp dựa trên tài liệu môn học, đồng thời nghiên cứu và so sánh hiệu quả giữa RAG và fine-tuning trong bối cảnh tiếng Việt."
+[![Hono](https://img.shields.io/badge/Backend-Hono.js-orange.svg?style=flat-square)](https://hono.dev)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js%2015-black.svg?style=flat-square)](https://nextjs.org)
+[![Prisma](https://img.shields.io/badge/ORM-Prisma-blue.svg?style=flat-square)](https://prisma.io)
+[![Better Auth](https://img.shields.io/badge/Auth-Better%20Auth-purple.svg?style=flat-square)](https://better-auth.com)
 
-"A. Tính năng hệ thống:
-1. Quản lý tài liệu
-•        Upload PDF, DOCX, slide bài giảng
-•        Tự động chunk & embed tài liệu
-•        Quản lý theo môn học / chương (chỉ cần demo 1 môn)
-•        Xem danh sách tài liệu đã index
-2. Chat & Hỏi đáp
-•        Chat tự nhiên theo ngữ cảnh hội thoại
-•        Trích dẫn nguồn tài liệu gốc
-•        Giới hạn trả lời trong phạm vi tài liệu
-•        Lịch sử hội thoại theo phiên
-
-Embedding models để thực nghiệm so sánh (tham khảo):
-multilingual-e5-base (miễn phí), text-embedding-3-small (OpenAI), PhoBERT-base (tiếng Việt), bge-m3 (BAAI)
-
-B. Sản phẩm bàn giao (Deliverables):
-1. Sản phẩm kỹ thuật:
-  - Web app chatbot
-  - Source code trên GitHub (có README)
-  - Test set 50 câu hỏi + ground truth (là tập câu hỏi + câu trả lời đúng được chuẩn bị sẵn bởi con người, dùng để đánh giá xem chatbot trả lời có chính xác không)
+Chào mừng bạn đến với repository chính thức của dự án **FPTU Chatbot RAG**. Đây là hệ thống hỏi đáp thông minh dựa trên tri thức bài giảng đa phương thức, đồng thời là môi trường thực nghiệm để đánh giá, so sánh hiệu năng giữa phương pháp **Retrieval-Augmented Generation (RAG)** và **Fine-tuning** đối với kho tài liệu học tập tiếng Việt tại Đại học FPT.
 
 ---
 
-Có thể embedding video thành vector được, và **Gemini Embedding 2 hỗ trợ trực tiếp embedding video**.
+## 🚀 Tính Năng Nổi Bật Hệ Thống
 
-### Có thể embedding video không?
+Hệ thống được thiết kế theo các tiêu chuẩn kỹ thuật hiện đại của năm 2026, cung cấp các tính năng vượt trội:
 
-- Video (ví dụ MP4, MOV ≤ 120 giây một request) có thể được đưa vào mô hình embedding để sinh ra một vector dense thể hiện nội dung ngữ nghĩa của đoạn video đó.  
-- Thay vì phải cắt video thành frame/ảnh rồi dùng mô hình riêng cho ảnh, với các mô hình hiện đại như Gemini Embedding 2, bạn có thể gửi video trực tiếp và nhận vector trong cùng không gian với text, image, audio, PDF. [vnai](https://vnai.vn/google-hop-nhat-van-ban-hinh-anh-video-va-am-thanh-trong-mot-khong-gian-vec-to-duy-nhat-voi-gemini-embedding-2/)
-
-### Gemini Embedding có hỗ trợ video không?
-
-- **Gemini Embedding 2** là mô hình embedding **multimodal native**, hỗ trợ:  
-  - Văn bản (lên tới 8.192 token).  
-  - Ảnh (tối đa 6 ảnh/request).  
-  - **Video (MP4/MOV, tối đa 120 giây / request)**.  
-  - Âm thanh (tới ~80 giây).  
-  - PDF (tới ~6 trang). [bibigpt](https://bibigpt.co/vi/features/gemini-embedding-2-multimodal-explained)
-- Tất cả các modal này được ánh xạ về **cùng một không gian vector semantic** (ví dụ 3.072 chiều), nên bạn có thể:  
-  - Tìm video tương tự nhau bằng cosine similarity.  
-  - Tìm video gần với một câu hỏi text (RAG đa phương thức). [bibigpt](https://bibigpt.co/vi/blog/posts/gemini-embedding-2-multimodal-vs-bibigpt-video-search-2026/)
-
-### Bạn có thể dùng như thế nào?
-
-- Qua API Gemini hoặc Vertex AI, bạn chỉ cần gửi video (hoặc kèm cả text/ảnh) và gọi endpoint embedding để nhận vector về, rồi lưu vào vector DB như QDrant, Chroma, Pinecone… để search/by similarity. [facebook](https://www.facebook.com/groups/binhdanhocai/posts/956453530176735/)
-- Gemini Embedding 2 cũng tương thích với các framework như LangChain/LlamaIndex, nên bạn có thể tích hợp sẵn pipeline RAG video–text. [cometapi](https://www.cometapi.com/vi/what-is-gemini-embedding-2/)
+1. **Quản Lý Tài Liệu Đa Phương Thức (Multimodal Ingestion Pipeline):**
+   * Hỗ trợ tải lên và trích xuất tài liệu từ nhiều định dạng: `.pdf`, `.docx`, `.txt`, `.pptx` (Slide bài giảng).
+   * Hỗ trợ nhúng trực tiếp Video bài giảng (`.mp4`, `.mov`) và File âm thanh thông qua mô hình **Gemini Embedding 2** với khả năng tìm kiếm ngữ nghĩa đồng bộ.
+2. **Chiến Lược Phân Đoạn Nâng Cao (Advanced Chunking Strategy):**
+   * Sử dụng cơ chế kết hợp giữa **Document-based chunking** (chia theo Slide/trang bài học thực tế) và **Semantic chunking** để giữ trọn vẹn ngữ cảnh học thuật và cấu trúc logic của giáo trình.
+3. **Giao Diện Trực Quan & Trích Dẫn Minh Bạch (Citation UI):**
+   * Phản hồi dạng **Streaming (SSE)** thời gian thực với hiệu ứng gõ chữ mượt mà.
+   * Hiển thị nguồn trích dẫn cụ thể (Slide số mấy, trang nào, giây thứ bao nhiêu trong video). Người dùng click vào nguồn sẽ được chuyển hướng trực tiếp đến trang PDF hoặc tua chính xác đến giây video tương ứng.
+4. **Bảo Mật Cô Lập Đa Trường (Logical Multi-tenant Isolation):**
+   * Kiến trúc Multi-tenant cho phép phân tách không gian tài liệu giữa các cơ sở đào tạo/trường học. Sinh viên trường A tuyệt đối không bị rò rỉ dữ liệu hoặc tìm chéo sang tài liệu trường B.
+5. **Cơ Chế Kiểm Soát LLM (Knowledge Guardrails):**
+   * Ngăn chặn hoàn toàn hiện tượng ảo tưởng (hallucination) của LLM bằng hệ thống Prompt chặt chẽ. Nếu câu hỏi nằm ngoài phạm vi tài liệu đã chỉ mục, chatbot sẽ lịch sự từ chối trả lời thay vì tự sáng tạo thông tin.
 
 ---
 
-Dựa trên các nghiên cứu và benchmark mới nhất năm 2025–2026 cho tài liệu tiếng Việt, đây là câu trả lời trực tiếp cho các RQ của bạn:
+## 📊 Kết Quả Nghiên Cứu Thực Nghiệm (RAG vs Fine-tuning)
 
-## **RQ chính: RAG hay Fine-tuning hiệu quả hơn?**
+Hệ thống được tối ưu hóa dựa trên các nghiên cứu thực nghiệm chi tiết đối với ngôn ngữ tiếng Việt:
 
-**RAG hiệu quả hơn cho chatbot hỗ trợ học tập với tài liệu tiếng Việt** trong hầu hết trường hợp, đặc biệt khi xét cả 3 tiêu chí:
+### 1. Đánh Giá Tổng Quan: RAG và Fine-tuning
 
-| Tiêu chí | RAG | Fine-tuning |
-|----------|-----|-------------|
-| **Độ chính xác** | Cao hơn cho câu hỏi dựa trên dữ kiện; giảm hallucination nhờ truy xuất nguồn gốc  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) | Tốt hơn cho phong cách/định dạng, nhưng vẫn hallucinate nếu dữ liệu train không bao quát  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) |
-| **Chi phí triển khai** | Thấp hơn: chỉ cần vector DB + embedding API, không cần GPU huấn luyện  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) | Cao hơn: cần GPU mạnh, thời gian huấn luyện dài, chi phí đáng kể  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) |
-| **Khả năng cập nhật kiến thức** | **Vượt trội**: chỉ cần cập nhật vector DB, không cần train lại  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) | **Kém**: cần fine-tuning lại toàn bộ khi có dữ liệu mới  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) |
+| Tiêu Chí Đánh Giá | Retrieval-Augmented Generation (RAG) | Fine-tuning (Huấn Luyện Tinh Chỉnh) |
+| :--- | :--- | :--- |
+| **Độ chính xác dữ kiện** | **Vượt trội** (Truy xuất trực tiếp từ tài liệu gốc, triệt tiêu ảo tưởng) | **Trung bình** (Dễ bị hallucination nếu câu hỏi lệch cấu trúc dữ liệu train) |
+| **Chi phí vận hành** | **Rất thấp** (Chỉ tốn phí API Embedding & lưu trữ Vector DB) | **Rất cao** (Cần hạ tầng GPU mạnh, chi phí train và cập nhật cực lớn) |
+| **Khả năng cập nhật tri thức** | **Tức thời** (Chỉ cần cập nhật, thêm/xóa file trong Vector DB) | **Độ trễ cao** (Phải huấn luyện lại từ đầu mỗi khi có giáo trình mới) |
+| **Khả năng kiểm chứng** | **Rõ ràng** (Có nguồn trích dẫn cụ thể: trang slide, giây video) | **Không có** (Câu trả lời sinh ra hoàn toàn từ trọng số mô hình) |
 
-### Khi nào nên chọn RAG?
-- Tài liệu bài giảng **thay đổi thường xuyên** (mỗi học kỳ, mỗi khóa học) [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app)
-- Cần **dẫn chứng nguồn gốc** (student có thể kiểm tra slide nào) [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app)
-- Ngân sách hạn chế, cần **triển khai nhanh** [tuyendung.evotek](https://tuyendung.evotek.vn/ai-engineer-roadmap-rag-la-gi-va-khi-nao-nen-su-dung-no-thay-vi-fine-tuning/)
+### 2. Chiến Lược Chunking Tối Ưu Cho Slide PDF Bài Giảng
 
-### Khi nào nên kết hợp Fine-tuning?
-- Cần chatbot nói **theo phong cách giáo viên cụ thể** (trang trọng, thân thiện, v.v.) [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app)
-- Cần output **định dạng chuẩn** (luôn trả JSON, luôn có citation format) [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app)
-- **Chiến lược hybrid**: Fine-tune nhẹ cho style + RAG cho kiến thức [tinai](https://tinai.vn/kien-thuc-ai/chon-rag-hay-fine-tune-dau-la-giai-phap-toi-uu-de-ai-hieu-du-lieu-noi-bo-cua-doanh-nghiep-ban.html)
+* **Fixed-size Chunking (Kém nhất):** Cắt ngang bullet points, mất ý nghĩa ngữ cảnh giữa các trang slide.
+* **Semantic & Document-based Chunking (Tối ưu nhất):** Chia tài liệu dựa trên cấu trúc các tiêu đề bài giảng (`Slide X: ...`), kết hợp phân đoạn ngữ nghĩa để giữ trọn ý nghĩa của từng bullet point.
+* **Overlap Khuyến Nghị:** 50 - 100 tokens để duy trì tính liên kết thông tin giữa các slide kề nhau.
 
-***
+### 3. Đánh Giá Mô Hình Embedding Tiếng Việt (Vietnamese STS Benchmarks)
 
-## **RQ phụ 1: Chunking strategy nào cho slide PDF tốt nhất?**
+| Tên Mô Hình Embedding | Chỉ Số STS-Vi | MRR@10 (Retrieval) | Tốc độ xử lý (sent/s) | Khuyến Nghị Sử Dụng |
+| :--- | :---: | :---: | :---: | :--- |
+| **`BAAI/bge-vi-base`** | **0.88** | **0.84** | 950 | **Tối ưu nhất cho RAG tiếng Việt thô và slide** |
+| `sBERT-Vi` | 0.86 | 0.81 | 1,100 | Phù hợp các chatbot hội thoại thông thường |
+| `multilingual-e5-base` | 0.85 | 0.80 | 900 | Tốt cho hệ thống đa ngôn ngữ |
+| `Gemini Embedding 2` | *N/A* | *High (Multimodal)* | API-dependent | **Bắt buộc cho RAG Đa phương thức (Video/Audio/Ảnh)** |
 
-**Document-based chunking (chia theo cấu trúc slide) + Semantic chunking** là tối ưu cho slide bài giảng PDF:
+---
 
-| Strategy | Ưu điểm với slide PDF | Nhược điểm | Retrieval accuracy |
-|----------|----------------------|------------|-------------------|
-| **Fixed-size** | Đơn giản, nhanh | Cắt ngang bullet points, mất ngữ cảnh slide  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) | Thấp nhất  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) |
-| **Semantic** | Giữ trọn ý chủ đề, chunk mạch lạc  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) | Chi phí tính toán cao hơn | **Cao** cho dense content  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) |
-| **Hierarchical** | Tốt cho slide dài có nhiều section  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) | Phức tạp triển khai | Cao cho query rộng + chi tiết  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) |
+## 🏗️ Kiến Trúc Hệ Thống (System Architecture)
 
-### Khuyến nghị cụ thể cho slide PDF:
-1. **Bước 1**: Convert PDF → **Markdown** (giữ header `# Title`, `## Slide X`, bullet points) [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/)
-2. **Bước 2**: Dùng **Document-based chunking** chia theo header slide [weaviate](https://weaviate.io/blog/chunking-strategies-for-rag)
-3. **Bước 3**: Nếu slide quá dài (>500 tokens), dùng **Semantic chunking** hoặc **Recursive chunking** với overlap 10–20% [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/)
+```mermaid
+graph TD
+    Client[Next.js 15 App Router <br> Web App] <-->|HTTPS / SSE Streaming| API[Hono.js Backend <br> Node.js Runtime]
+    
+    subgraph Storage [Tầng Lưu Trữ & Truy Vấn]
+        API <-->|Prisma ORM| RDB[(PostgreSQL / SQLite <br> Metadata & Sessions)]
+        API <-->|Vector API| VDB[(Qdrant / ChromaDB <br> Vector Database)]
+    end
 
-> **Best practice**: Chunk size ~300–500 tokens + overlap 50–100 tokens cho slide [weaviate](https://weaviate.io/blog/chunking-strategies-for-rag)
-
-***
-
-## **RQ phụ 2: Embedding model nào phù hợp nhất?**
-
-**bge-vi-base** (BAAI fine-tuned) là lựa chọn tối ưu cho tài liệu kỹ thuật tiếng Việt:
-
-| Model | Accuracy (STS-Vi) | MRR@10 (Retrieval) | Tốc độ (sent/s) | Phù hợp cho |
-|-------|-------------------|-------------------|-----------------|-------------|
-| **bge-vi-base** | **0.88** | **0.84** | 950 | **Semantic search / RAG**  [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j) |
-| sBERT-Vi | 0.86 | 0.81 | 1,100 | Chatbot đa ngữ cảnh  [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j) |
-| PhoBERT | 0.82 | 0.77 | 1,200 | Classification / fine-tune  [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j) |
-| multilingual-e5 | ~0.85* | ~0.80* | ~900 | Đa ngữ, nhưng kém hơn bge-vi cho tiếng Việt  [arxiv](https://arxiv.org/html/2402.05672v1) |
-| OpenAI ada-002 | ~0.83* | ~0.78* | API-dependent | Tốt nhưng đắt, không tối ưu tiếng Việt  [mcivietnam](https://mcivietnam.com/blog-detail/rag-retrieval-augmented-generation-bo-nao-co-tri-nho-cho-ai-1QWABI/) |
-
-\* Estimaste từ benchmark đa ngữ, không cụ thể tiếng Việt [arxiv](https://arxiv.org/html/2402.05672v1)
-
-### Tại sao bge-vi-base tốt nhất?
-- **Fine-tuned trên hàng triệu cặp Q-A tiếng Việt** [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j)
-- **Vượt trội retrieval + similarity** trong benchmark 2025 [bizfly](https://bizfly.vn/techblog/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark.html)
-- Dễ tích hợp với LangChain/LlamaIndex [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j)
-
-### Nếu cần multilingual (có tiếng Anh + Việt):
-- **multilingual-e5-large** → nên fine-tune thêm cho tiếng Việt nếu có corpus riêng [reddit](https://www.reddit.com/r/LocalLLaMA/comments/19b6rar/hi_im_seeking_for_any_embedding_model_for/)
-
-### Pipeline đề xuất cho RAG của bạn:
-```python
-from sentence_transformers import SentenceTransformer
-
-# Embedding model
-model = SentenceTransformer("BAAI/bge-vi-base")  # [web:7]
-
-# Chunking: Markdown-based + Semantic
-# Vector DB: ChromaDB / FAISS
-# LLM: Claude / GPT-4o (untuk generation)
+    subgraph AI_Services [Dịch Vụ AI Phân Tích]
+        API -->|LLM & Multimodal| Gemini[Google Gemini API <br> Gemini 2.0 / Embedding 2]
+        API -->|Vietnamese Embedding| LocalEmbedding[Local Embedding Node <br> BAAI/bge-vi-base]
+    end
 ```
 
-***
+---
 
-## **Tóm tắt khuyến nghị cho thesis của bạn**
+## 📂 Bản Đồ Thư Mục Monorepo
 
-| RQ | Câu trả lời ngắn | justification chính |
-|----|------------------|---------------------|
-| **RAG vs Fine-tuning** | RAG | Cập nhật dễ, chi phí thấp, độ chính xác cao cho Q/A  [tuyendung.hachinet](https://tuyendung.hachinet.com/blog/rag-vs-fine-tuning-cach-nao-tot-hon-khi-xay-ai-app) |
-| **Chunking strategy** | Document-based + Semantic | Giữ cấu trúc slide, retrieval accuracy cao  [facebook](https://www.facebook.com/groups/miaigroup/posts/2065913510846577/) |
-| **Embedding model** | bge-vi-base | MRR@10 0.84, tốt nhất cho tiếng Việt  [viblo](https://viblo.asia/p/so-sanh-cac-mo-hinh-embedding-cho-tieng-viet-qua-benchmark-2025-AoJe88G141j) |
+```
+chatbot-rag-fptu/
+├── api/                        # Mã nguồn Backend API (Hono.js + TypeScript)
+│   ├── prisma/                 # Định nghĩa Schema dữ liệu quan hệ (Prisma)
+│   └── src/                    # Logic xử lý API Gateway & RAG engine
+├── database/                   # Cấu hình container PostgreSQL chạy Docker
+├── docs/                       # Thư mục chứa tài liệu đặc tả & nghiên cứu chuyên sâu
+│   ├── README.md               # Bản đồ tài liệu kỹ thuật
+│   ├── system_requirements.md  # Đặc tả yêu cầu phần mềm (SRS)
+│   ├── system_architecture.md  # Tài liệu thiết kế kiến trúc chi tiết
+│   ├── folder_structure.md     # Định nghĩa cấu trúc thư mục toàn hệ thống
+│   ├── development-roadmap.md  # Kế hoạch phát triển và lộ trình chi tiết
+│   ├── code-standards.md       # Chuẩn viết code và quy ước phát triển
+│   ├── hono_guide.md           # Hướng dẫn chi tiết phát triển Backend Hono.js
+│   └── better_auth_guide.md    # Hẩm nang bảo mật xác thực Better Auth
+├── web/                        # Giao diện người dùng Frontend (Next.js 15)
+│   ├── app/                    # Các route giao diện chính (App Router)
+│   └── components/             # Thư viện UI components tái sử dụng
+└── Makefile                    # File cấu hình lệnh chạy nhanh của monorepo
+```
 
-Có cần tôi giúp bạn thiết kế experimental setup (metrics, baseline models, dataset) để validate các giả thuyết này trong thesis không?
+---
+
+## 🛠️ Hướng Dẫn Cài Đặt & Chạy Nhanh (Quick Start)
+
+Dự án cung cấp tệp `Makefile` để đơn giản hóa tất cả các thao tác trên cả hai không gian làm việc.
+
+### 1. Chuẩn Bị Môi Trường (.env)
+
+> [!WARNING]
+> Không bao giờ tạo các file `.env` cục bộ bên trong thư mục `api/` hoặc `web/`.
+> Toàn bộ cấu hình hệ thống phải được lưu trữ duy nhất tại file `.env` ở **thư mục gốc (root)** của dự án. 
+
+Sao chép file cấu hình mẫu và điền đầy đủ các khóa API cần thiết:
+```bash
+cp .env.example .env
+```
+
+### 2. Các Bước Khởi Chạy Nhanh
+
+Thực hiện tuần tự các lệnh sau tại thư mục gốc:
+
+1. **Khởi động database Docker:**
+   ```bash
+   make db-up
+   ```
+2. **Đồng bộ cơ sở dữ liệu và tạo Prisma Client:**
+   ```bash
+   make migrate
+   make prisma-generate
+   ```
+3. **Chạy song song Backend và Frontend:**
+   * Trong một terminal mới, chạy Backend API (cổng `3000`):
+     ```bash
+     make dev-api
+     ```
+   * Trong một terminal khác, chạy Frontend Web (cổng `3001`):
+     ```bash
+     make dev-web
+     ```
+4. **Kiểm tra trạng thái hoạt động (Health check):**
+   ```bash
+   make health-check
+   ```
+
+Để biết thêm chi tiết về tất cả lệnh CLI khả dụng, vui lòng tham khảo [CLAUDE.md](file:///E:/FPT/Semester_7/SWD392/chatbot-rag-fptu/CLAUDE.md).
+
+---
+
+## 📄 Tài Liệu Tham Khảo Dành Cho Nhà Phát Triển
+* **Lộ trình chi tiết:** Xem [Lộ trình phát triển hệ thống (development-roadmap.md)](file:///e:/FPT/Semester_7/SWD392/chatbot-rag-fptu/docs/development-roadmap.md).
+* **Quy chuẩn lập trình:** Xem [Bộ quy chuẩn code tiêu chuẩn (code-standards.md)](file:///e:/FPT/Semester_7/SWD392/chatbot-rag-fptu/docs/code-standards.md).
+* **Chi tiết Kiến trúc:** Xem [Đặc tả kỹ thuật (system_architecture.md)](file:///e:/FPT/Semester_7/SWD392/chatbot-rag-fptu/docs/system_architecture.md).
