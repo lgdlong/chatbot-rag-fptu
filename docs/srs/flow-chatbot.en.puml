@@ -1,0 +1,31 @@
+@startuml
+title Chatbot Flow Diagram
+
+|Student|
+start
+:Start new chat session;
+:Send subject question;
+
+|Chatbot System|
+:Receive question and request processing;
+
+|System Handler|
+:Check Subscription plan & usage limit;
+if (Usage limit available?) then (Yes)
+  :Search RAG context in documents;
+  :Generate response based on documents via LLM;
+  |Chatbot System|
+  :Format response and citations;
+  |Student|
+  :View response and citations;
+else (No)
+  |System Handler|
+  :Return usage limit error;
+  |Chatbot System|
+  :Display limit notification;
+  |Student|
+  :Receive usage limit exceeded notification;
+endif
+
+stop
+@enduml

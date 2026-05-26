@@ -1,0 +1,34 @@
+@startuml
+title Session Management Flow Diagram
+
+|Student|
+start
+:Request list of past chat sessions;
+
+|System Handler|
+:Query Database for sessions matching User ID;
+:Return session list with titles;
+
+|Student|
+:View session history list on UI;
+if (Desired action?) then (Rename session)
+  :Enter new name for the session;
+  :Confirm rename request;
+  |System Handler|
+  :Update session title in Database;
+  :Return success status;
+  |Student|
+  :View updated title on the sidebar;
+else (Delete session)
+  |Student|
+  :Click delete session icon;
+  :Confirm deletion warning prompt;
+  |System Handler|
+  :Delete session and all related chat messages;
+  :Update session list in Database;
+  |Student|
+  :View updated sidebar without the deleted session;
+endif
+
+stop
+@enduml

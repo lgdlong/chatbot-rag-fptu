@@ -1,0 +1,28 @@
+@startuml
+title Sơ đồ quy trình tải và xử lý tài liệu (Document Upload Flow)
+
+|Giảng viên (Lecturer)|
+start
+:Chuẩn bị tài liệu (PDF, DOCX, Slide);
+:Tải tài liệu lên hệ thống;
+
+|Hệ thống Quản lý|
+:Tiếp nhận và xác thực định dạng tài liệu;
+
+|System Handler|
+:Phân tách (Chunking) & Vector hóa tài liệu (RAG Ingestion);
+:Lưu trữ văn bản và vector vào Database & Vector DB;
+
+|Giảng viên (Lecturer)|
+:Xem danh sách tài liệu hiện tại;
+if (Cần xóa tài liệu cũ?) then (Có)
+  :Yêu cầu xóa tài liệu;
+  |System Handler|
+  :Xóa dữ liệu tài liệu & vector tương ứng;
+  |Giảng viên (Lecturer)|
+  :Cập nhật danh sách tài liệu mới;
+else (Không)
+endif
+
+stop
+@enduml

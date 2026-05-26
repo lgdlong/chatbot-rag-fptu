@@ -1,0 +1,21 @@
+@startuml
+title Subscription Flow Diagram
+
+|Student|
+start
+:Access Subscription page;
+:View plan info and benefits (Silver, Gold);
+:Select plan and confirm registration/payment;
+
+|Subscription System|
+:Initiate transaction and redirect to payment;
+
+|System Handler|
+:Verify payment transaction via Webhook/API;
+:Update plan tier & account limits in Database;
+
+|Student|
+:Use system with new benefit limits;
+
+stop
+@enduml

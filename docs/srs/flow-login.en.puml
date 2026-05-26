@@ -1,0 +1,39 @@
+@startuml
+title Authentication & Login Flow Diagram
+
+|User|
+start
+:Access Login page;
+if (Login Method?) then (Email/Password)
+  :Enter Email and Password;
+  :Submit credentials;
+  |System Handler|
+  :Hash and verify credentials in Database;
+  if (Credentials valid?) then (Yes)
+    :Generate JWT Session and Auth Cookie;
+    |User|
+    :Log in successfully and redirect to dashboard;
+  else (No)
+    |System Handler|
+    :Return login failure error;
+    |User|
+    :Display error and prompt retry;
+  endif
+else (Google SSO)
+  |User|
+  :Click "Login with Google";
+  :Authenticate account via Google Prompt;
+  |System Handler|
+  :Receive Google Token and verify with Google API;
+  :Check if user exists in Database;
+  if (User exists?) then (No)
+    :Auto-register new Student account;
+  else (Yes)
+  endif
+  :Generate JWT Session and Auth Cookie;
+  |User|
+  :Log in successfully and redirect to dashboard;
+endif
+
+stop
+@enduml

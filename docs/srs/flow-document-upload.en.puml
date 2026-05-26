@@ -1,0 +1,28 @@
+@startuml
+title Document Upload Flow Diagram
+
+|Lecturer|
+start
+:Prepare document (PDF, DOCX, Slide);
+:Upload document to system;
+
+|Management System|
+:Receive and validate document format;
+
+|System Handler|
+:Document chunking & vectorization (RAG Ingestion);
+:Save text & vectors to Database & Vector DB;
+
+|Lecturer|
+:View current document list;
+if (Need to delete old document?) then (Yes)
+  :Request document deletion;
+  |System Handler|
+  :Delete document & associated vectors;
+  |Lecturer|
+  :Update document list;
+else (No)
+endif
+
+stop
+@enduml

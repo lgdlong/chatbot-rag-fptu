@@ -1,0 +1,36 @@
+@startuml
+title Lecturer Registration & Approval Flow Diagram
+
+|Lecturer|
+start
+:Access account request page;
+:Enter details (Email, Full Name, Department);
+:Submit account request;
+
+|System Handler|
+:Receive request and validate format;
+:Save request in Database with "Pending" status;
+:Notify Admin of new request;
+
+|Admin|
+:View pending request list;
+:Review lecturer details;
+if (Approve request?) then (Yes)
+  :Select Approve and grant role;
+  |System Handler|
+  :Create Lecturer account in Database;
+  :Send success email with credentials;
+  |Lecturer|
+  :Receive email and log in to system;
+else (No)
+  |Admin|
+  :Enter rejection reason and submit;
+  |System Handler|
+  :Update request status to "Rejected" in Database;
+  :Send rejection email with reason;
+  |Lecturer|
+  :Receive rejection email;
+endif
+
+stop
+@enduml

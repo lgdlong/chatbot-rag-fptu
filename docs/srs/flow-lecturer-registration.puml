@@ -1,0 +1,36 @@
+@startuml
+title Sơ đồ quy trình đăng ký tài khoản Giảng viên (Lecturer Registration Flow)
+
+|Giảng viên (Lecturer)|
+start
+:Truy cập trang yêu cầu tài khoản;
+:Nhập thông tin (Email, Họ tên, Đơn vị);
+:Gửi yêu cầu cấp tài khoản;
+
+|System Handler|
+:Nhận yêu cầu và xác thực định dạng;
+:Lưu yêu cầu vào CSDL với trạng thái "Chờ duyệt";
+:Thông báo cho Admin;
+
+|Quản trị viên (Admin)|
+:Xem danh sách yêu cầu chờ duyệt;
+:Đánh giá thông tin giảng viên;
+if (Phê duyệt yêu cầu?) then (Đồng ý)
+  :Chọn Phê duyệt và cấp quyền;
+  |System Handler|
+  :Tạo tài khoản Giảng viên trong CSDL;
+  :Gửi email thông báo tài khoản & mật khẩu;
+  |Giảng viên (Lecturer)|
+  :Nhận email và đăng nhập hệ thống;
+else (Từ chối)
+  |Quản trị viên (Admin)|
+  :Nhập lý do từ chối và gửi;
+  |System Handler|
+  :Cập nhật trạng thái yêu cầu thành "Từ chối";
+  :Gửi email thông báo từ chối kèm lý do;
+  |Giảng viên (Lecturer)|
+  :Nhận email thông báo bị từ chối;
+endif
+
+stop
+@enduml

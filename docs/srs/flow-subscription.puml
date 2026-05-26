@@ -1,0 +1,21 @@
+@startuml
+title Sơ đồ quy trình đăng ký gói dịch vụ (Subscription Flow)
+
+|Học sinh (Student)|
+start
+:Truy cập trang Gói dịch vụ (Subscription);
+:Xem thông tin và quyền lợi các gói cước (Bạc, Vàng);
+:Chọn gói và xác nhận đăng ký/thanh toán;
+
+|Hệ thống Subscription|
+:Khởi tạo giao dịch và chuyển hướng thanh toán;
+
+|System Handler|
+:Xác thực giao dịch thanh toán qua Webhook/API;
+:Cập nhật gói dịch vụ và giới hạn tài khoản (Database);
+
+|Học sinh (Student)|
+:Sử dụng hệ thống với giới hạn quyền lợi mới;
+
+stop
+@enduml

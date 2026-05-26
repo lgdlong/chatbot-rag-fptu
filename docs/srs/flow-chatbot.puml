@@ -1,0 +1,31 @@
+@startuml
+title Sơ đồ quy trình trò chuyện (Chatbot Flow)
+
+|Học sinh (Student)|
+start
+:Bắt đầu phiên chat mới;
+:Gửi câu hỏi môn học;
+
+|Hệ thống Chatbot|
+:Nhận câu hỏi và gửi yêu cầu xử lý;
+
+|System Handler|
+:Kiểm tra giới hạn & gói Subscription;
+if (Còn giới hạn Lượt/Session?) then (Có)
+  :Tìm kiếm ngữ cảnh RAG trong tài liệu;
+  :Tạo câu trả lời dựa trên tài liệu qua LLM;
+  |Hệ thống Chatbot|
+  :Định dạng câu trả lời và trích dẫn;
+  |Học sinh (Student)|
+  :Xem câu trả lời và trích dẫn;
+else (Không)
+  |System Handler|
+  :Trả về lỗi vượt quá giới hạn;
+  |Hệ thống Chatbot|
+  :Hiển thị thông báo giới hạn;
+  |Học sinh (Student)|
+  :Nhận thông báo vượt giới hạn sử dụng;
+endif
+
+stop
+@enduml
