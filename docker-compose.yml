@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17-alpine
+    image: pgvector/pgvector:pg17
     container_name: chatbot-rag-postgres
     restart: always
     environment:
@@ -11,18 +11,6 @@ services:
       - "${POSTGRES_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: chatbot-rag-qdrant
-    restart: always
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    environment:
-      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
-    volumes:
-      - qdrant_data:/qdrant/storage
 
   redis:
     image: redis:7-alpine
@@ -35,5 +23,4 @@ services:
 
 volumes:
   postgres_data:
-  qdrant_data:
   redis_data:

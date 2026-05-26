@@ -27,4 +27,7 @@ export const ENV = {
   INTERNAL_API_KEY:
     process.env.INTERNAL_API_KEY || "super_secret_internal_key_fptu_rag",
   INTERNAL_API_URL: process.env.INTERNAL_API_URL || "http://localhost:8000",
+  PAYOS_CLIENT_ID: process.env.PAYOS_CLIENT_ID || "",
+  PAYOS_API_KEY: process.env.PAYOS_API_KEY || "",
+  PAYOS_CHECKSUM_KEY: process.env.PAYOS_CHECKSUM_KEY || "",
 } as const;
