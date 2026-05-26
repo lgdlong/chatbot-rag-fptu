@@ -1,5 +1,6 @@
 import "./config/env.js"; // Load environment variables first!
 import { serve } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { auth } from "./modules/auth/auth.js";
@@ -13,6 +14,8 @@ import {
 } from "./modules/rag/rag.controller.js";
 import { internalRouter } from "./modules/documents/document.internal.controller.js";
 import { chatRouter } from "./modules/chat/chat.controller.js";
+import { lecturerAdminRouter } from "./modules/auth/lecturer.controller.js";
+import { subscriptionRouter } from "./modules/subscriptions/subscription.controller.js";
 
 export const app = new Hono();
 
@@ -28,10 +31,15 @@ app.use(
   }),
 );
 
+// Serve uploaded documents statically from ./uploads directory
+app.use("/uploads/*", serveStatic({ root: "./" }));
+
 // Mount API modules
 app.route("/api/courses", ragRouter);
 app.route("/api/internal", internalRouter);
 app.route("/api/chat", chatRouter);
+app.route("/api/auth-admin", lecturerAdminRouter);
+app.route("/api/subscriptions", subscriptionRouter);
 
 app.delete(
   "/api/courses/:courseId/documents/:documentId",

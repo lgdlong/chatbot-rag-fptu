@@ -6,6 +6,8 @@ import { auth } from "../auth/auth.js";
 import { prisma } from "../auth/services/db.service.js";
 import { DocumentRepository } from "../documents/repositories/document.repository.js";
 import { ENV } from "../../config/env.js";
+import { GoogleGenAI } from "@google/genai";
+import { getOrInitializeSubscription } from "../subscriptions/subscription.controller.js";
 
 export const chatRouter = new Hono();
 
@@ -125,27 +127,8 @@ chatRouter.get("/courses", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  let organizationId = session.session.activeOrganizationId;
-  if (!organizationId) {
-    // Fallback: Find the first organization the user belongs to
-    const memberRecord = await prisma.member.findFirst({
-      where: { userId: session.user.id },
-    });
-    if (memberRecord) {
-      organizationId = memberRecord.organizationId;
-    }
-  }
-
-  if (!organizationId) {
-    return c.json(
-      { error: "Tenant context is missing (Organization ID required)" },
-      400,
-    );
-  }
-
   try {
     const courses = await prisma.course.findMany({
-      where: { organizationId },
       orderBy: { createdAt: "desc" },
     });
     return c.json({ courses });
@@ -187,7 +170,7 @@ chatRouter.get("/sessions", async (c) => {
   }
 });
 
-// Create a new chat session for a course
+// Create a new chat session (courseId is optional for global all-courses chat)
 chatRouter.post("/sessions", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session || !session.user) {
@@ -196,13 +179,10 @@ chatRouter.post("/sessions", async (c) => {
 
   try {
     const { courseId } = await c.req.json();
-    if (!courseId) {
-      return c.json({ error: "courseId is required" }, 400);
-    }
 
     const chatSession = await ChatRepository.createSession({
       user: { connect: { id: session.user.id } },
-      course: { connect: { id: courseId } },
+      ...(courseId ? { course: { connect: { id: courseId } } } : {}),
     });
 
     return c.json({ session: chatSession });
@@ -228,9 +208,113 @@ chatRouter.get("/sessions/:sessionId", async (c) => {
     if (chatSession.userId !== session.user.id) {
       return c.json({ error: "Unauthorized to view this session" }, 403);
     }
-    return c.json({ session: chatSession });
+
+    // Lấy danh sách tài liệu: Nếu chat theo môn học thì lấy tài liệu môn đó, nếu chat toàn bộ thì lấy tất cả tài liệu
+    const activeDocs = chatSession.courseId
+      ? await prisma.document.findMany({
+          where: { courseId: chatSession.courseId },
+          select: { id: true }
+        })
+      : await prisma.document.findMany({
+          select: { id: true }
+        });
+    const activeDocIds = new Set(activeDocs.map(d => d.id));
+
+    // Duyệt qua các tin nhắn, nếu citation chứa documentId không nằm trong activeDocIds, đánh dấu isDeleted: true
+    const parsedMessages = chatSession.messages.map(message => {
+      let citations = message.citations as any;
+      if (citations && Array.isArray(citations)) {
+        citations = citations.map((cit: any) => {
+          if (cit.documentId && !activeDocIds.has(cit.documentId)) {
+            return { ...cit, isDeleted: true };
+          }
+          return cit;
+        });
+      }
+      return {
+        ...message,
+        citations
+      };
+    });
+
+    return c.json({
+      session: {
+        ...chatSession,
+        messages: parsedMessages
+      }
+    });
   } catch (err: any) {
     return c.json({ error: err.message || "Failed to fetch session" }, 500);
+  }
+});
+
+// Rename chat session
+chatRouter.patch("/sessions/:sessionId", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session || !session.user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const sessionId = c.req.param("sessionId");
+  const { title } = await c.req.json();
+
+  if (!title || typeof title !== "string" || title.trim() === "") {
+    return c.json({ error: "Title is required" }, 400);
+  }
+
+  try {
+    const chatSession = await prisma.chatSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!chatSession) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    if (chatSession.userId !== session.user.id) {
+      return c.json({ error: "Unauthorized to update this session" }, 403);
+    }
+
+    const updated = await prisma.chatSession.update({
+      where: { id: sessionId },
+      data: { title: title.trim() },
+    });
+
+    return c.json({ success: true, session: updated });
+  } catch (err: any) {
+    return c.json({ error: err.message || "Failed to rename session" }, 500);
+  }
+});
+
+// Delete chat session
+chatRouter.delete("/sessions/:sessionId", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session || !session.user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const sessionId = c.req.param("sessionId");
+
+  try {
+    const chatSession = await prisma.chatSession.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!chatSession) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    if (chatSession.userId !== session.user.id) {
+      return c.json({ error: "Unauthorized to delete this session" }, 403);
+    }
+
+    await prisma.chatSession.delete({
+      where: { id: sessionId },
+    });
+
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message || "Failed to delete session" }, 500);
   }
 });
 
@@ -240,29 +324,20 @@ chatRouter.post("/send", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
+  // Kiểm tra hạn mức tin nhắn hàng ngày
+  const subscription = await getOrInitializeSubscription(session.user.id);
+  if (subscription.messageCount >= subscription.maxMessages) {
+    return c.json({
+      error: "LIMIT_EXCEEDED",
+      message: "Bạn đã dùng hết giới hạn câu hỏi trong ngày. Hãy nâng cấp gói dịch vụ (Silver/Gold) để tiếp tục hỏi chatbot!"
+    }, 403);
+  }
+
   const { sessionId, message } = await c.req.json();
   const chatSession = await ChatRepository.findSessionById(sessionId);
 
   if (!chatSession) {
     return c.json({ error: "Chat session not found" }, 404);
-  }
-
-  let organizationId = session.session.activeOrganizationId;
-  if (!organizationId) {
-    // Fallback: Find the first organization the user belongs to
-    const memberRecord = await prisma.member.findFirst({
-      where: { userId: session.user.id },
-    });
-    if (memberRecord) {
-      organizationId = memberRecord.organizationId;
-    }
-  }
-
-  if (!organizationId) {
-    return c.json(
-      { error: "Tenant context is missing (Organization ID required)" },
-      400,
-    );
   }
 
   // Chuyển đổi lịch sử chat của phiên cho phù hợp định dạng Gemini
@@ -278,6 +353,29 @@ chatRouter.post("/send", async (c) => {
     content: message,
   });
 
+  // Tự động tóm tắt làm tiêu đề nếu là tin nhắn đầu tiên của session
+  if (chatHistory.length === 0) {
+    try {
+      const ai = new GoogleGenAI({ apiKey: ENV.GEMINI_API_KEY });
+      const summaryResponse = await ai.models.generateContent({
+        model: "gemini-3.1-flash-lite",
+        contents: `Hãy tóm tắt câu hỏi sau thành một tiêu đề hội thoại ngắn gọn (tối đa 5 từ), trả về duy nhất văn bản thuần túy không chứa bất kỳ markdown, dấu ngoặc hay dấu chấm nào:\n\n"${message}"`,
+      });
+      const generatedTitle = summaryResponse.text?.trim() || "Cuộc hội thoại mới";
+      await prisma.chatSession.update({
+        where: { id: sessionId },
+        data: { title: generatedTitle },
+      });
+    } catch (titleError) {
+      console.error("Failed to generate session title via AI, fallback to substring:", titleError);
+      const fallbackTitle = message.length > 30 ? message.substring(0, 30) + "..." : message;
+      await prisma.chatSession.update({
+        where: { id: sessionId },
+        data: { title: fallbackTitle },
+      });
+    }
+  }
+
   // Trả về stream SSE trực tuyến cho sinh viên
   return streamSSE(c, async (stream) => {
     let citationsToSend: any[] = [];
@@ -287,7 +385,6 @@ chatRouter.post("/send", async (c) => {
       const ragResult = await RagService.retrieveAndGenerate(
         message,
         chatSession.courseId,
-        organizationId,
         chatHistory,
         async (chunk) => {
           accumulatedAnswer += chunk;
@@ -313,6 +410,12 @@ chatRouter.post("/send", async (c) => {
         sender: "ASSISTANT",
         content: accumulatedAnswer,
         citations: citationsToSend as any,
+      });
+
+      // Tăng số lượng tin nhắn đã gửi thành công
+      await prisma.subscription.update({
+        where: { id: subscription.id },
+        data: { messageCount: { increment: 1 } }
       });
     } catch (err: any) {
       console.error("[Chat Stream Error]:", err);
