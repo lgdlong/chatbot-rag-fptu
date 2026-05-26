@@ -155,9 +155,8 @@ async function main() {
     const ragResult = await RagService.retrieveAndGenerate(
       'Hãy tóm tắt ngắn gọn nội dung của tài liệu này trong 1 câu.',
       course.id,
-      org.id,
       [],
-      (chunk) => {
+      (chunk: string) => {
         process.stdout.write(chunk)
       }
     )

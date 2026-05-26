@@ -6,29 +6,8 @@ import { DocumentRepository } from "../documents/repositories/document.repositor
 import { auth } from "../auth/auth.js";
 import { prisma } from "../auth/services/db.service.js";
 import { ENV } from "../../config/env.js";
-import { QdrantService } from "./services/qdrant.service.js";
 
 export const ragRouter = new Hono();
-const RAG_COLLECTION_NAME = "fptu_rag_documents";
-
-async function resolveOrganizationId(session: {
-  user: { id: string };
-  session: { activeOrganizationId?: string | null };
-}) {
-  let organizationId = session.session.activeOrganizationId;
-
-  if (!organizationId) {
-    const memberRecord = await prisma.member.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (memberRecord) {
-      organizationId = memberRecord.organizationId;
-    }
-  }
-
-  return organizationId;
-}
 
 async function removeFileIfExists(filePath: string) {
   try {
@@ -72,20 +51,25 @@ ragRouter.post("/:courseId/documents", async (c) => {
   }
 
   const courseId = c.req.param("courseId");
-  const organizationId = await resolveOrganizationId(session);
-
-  if (!organizationId) {
-    return c.json(
-      { error: "Tenant context is missing (Organization ID required)" },
-      400,
-    );
-  }
 
   const body = await c.req.parseBody();
   const file = body.file;
 
   if (!file || !(file instanceof File)) {
     return c.json({ error: "No file uploaded or invalid file format" }, 400);
+  }
+
+  // Edge case: Kiểm tra dung lượng file (dưới 50MB theo yêu cầu SRS)
+  if (file.size > 50 * 1024 * 1024) {
+    return c.json({ error: "File size exceeds the maximum limit of 50MB" }, 400);
+  }
+
+  // Edge case: Kiểm tra định dạng file an toàn cho Ingestion Worker (Golang pdfcpu)
+  const fileExtension = file.name.split(".").pop()?.toLowerCase();
+  if (fileExtension !== "pdf") {
+    return c.json({ 
+      error: "Unsupported file format. Please export your slide or document to PDF format before uploading." 
+    }, 400);
   }
 
   // 1. Tạo document record ở trạng thái PENDING
@@ -113,7 +97,7 @@ ragRouter.post("/:courseId/documents", async (c) => {
 
   const jobPayload = {
     documentId: doc.id,
-    organizationId,
+    organizationId: "org-default", // Truyền giá trị cố định để tương thích với Go worker payload struct
     courseId,
     filePath: `.${filePath}`,
     documentName: doc.name,
@@ -146,17 +130,9 @@ export async function deleteDocumentHandler(c: Context) {
 
   const courseId = c.req.param("courseId");
   const documentId = c.req.param("documentId");
-  const organizationId = await resolveOrganizationId(session);
-
-  if (!organizationId) {
-    return c.json(
-      { error: "Tenant context is missing (Organization ID required)" },
-      400,
-    );
-  }
 
   const course = await prisma.course.findFirst({
-    where: { id: courseId, organizationId },
+    where: { id: courseId },
     select: { id: true },
   });
 
@@ -178,10 +154,6 @@ export async function deleteDocumentHandler(c: Context) {
     return c.json({ success: true });
   }
 
-  if (document.course.organizationId !== organizationId) {
-    return c.json({ error: "Unauthorized to delete this document" }, 403);
-  }
-
   if (document.status === "PENDING" || document.status === "PROCESSING") {
     return c.json(
       { error: "Document is still processing and cannot be deleted" },
@@ -190,13 +162,6 @@ export async function deleteDocumentHandler(c: Context) {
   }
 
   try {
-    await QdrantService.deleteByDocumentId(
-      RAG_COLLECTION_NAME,
-      documentId!,
-      organizationId!,
-      courseId!,
-    );
-
     const originalFilePath = join(".", document.fileUrl.replace(/^\/+/, ""));
     await removeFileIfExists(originalFilePath);
     await removeChunkFiles(documentId!);

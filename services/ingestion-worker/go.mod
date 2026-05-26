@@ -4,8 +4,8 @@ go 1.22.2
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/lib/pq v1.12.3
 	github.com/pdfcpu/pdfcpu v0.8.0
-	github.com/qdrant/go-client v1.12.0
 	github.com/redis/go-redis/v9 v9.5.1
 )
 
@@ -18,11 +18,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	golang.org/x/image v0.15.0 // indirect
-	golang.org/x/net v0.28.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240827150818-7e3bb234dfed // indirect
-	google.golang.org/grpc v1.66.0 // indirect
-	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

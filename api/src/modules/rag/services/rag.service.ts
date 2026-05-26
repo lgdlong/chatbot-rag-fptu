@@ -1,61 +1,85 @@
 import { readFile } from 'node:fs/promises'
-import { QdrantService } from './qdrant.service.js'
 import { GeminiService } from './gemini.service.js'
+import { prisma } from '../../auth/services/db.service.js'
 
 export class RagService {
-  private static COLLECTION_NAME = 'fptu_rag_documents'
-
-  // Lưu ý: Hàm xử lý PDF đã được chuyển sang BullMQ Worker nền độc lập
-  // để tránh chiếm dụng CPU của Main Thread (Node.js). Hono API chỉ đẩy job vào Redis.
-
   /**
-   * Truy xuất ngữ cảnh kiến thức và sinh câu trả lời
+   * Truy xuất ngữ cảnh kiến thức và sinh câu trả lời bằng pgvector + Gemini
    */
   public static async retrieveAndGenerate(
     query: string,
-    courseId: string,
-    organizationId: string,
+    courseId: string | null,
     chatHistory: Array<{ role: 'user' | 'model'; parts: string[] }>,
     onChunk: (text: string) => void
   ) {
-    // 1. Tạo embedding cho câu hỏi của sinh viên bằng định dạng prefix bất đối xứng
+    // 1. Tạo embedding cho câu hỏi bằng Gemini Embedding 2
     const queryPrompt = `task: question answering | query: ${query}`
     const queryVector = await GeminiService.generateEmbedding(queryPrompt)
 
-    // 2. Truy xuất k=5 phân đoạn tài liệu phù hợp nhất từ Qdrant
-    // Đảm bảo an toàn đa trường bằng cách lọc theo organizationId và courseId
-    const searchResults = await QdrantService.searchSimilarity(
-      this.COLLECTION_NAME,
-      queryVector,
-      organizationId,
-      courseId,
-      5
-    )
+    // Chuyển queryVector thành chuỗi JSON định dạng mảng để truyền vào query SQL
+    const vectorString = `[${queryVector.join(',')}]`
+
+    // 2. Truy xuất k=5 chunks tài liệu phù hợp nhất từ pgvector trong PostgreSQL
+    // Nếu courseId có giá trị thì lọc theo môn học, ngược lại tìm trên toàn bộ tài liệu (Global RAG)
+    const searchResults = courseId
+      ? await prisma.$queryRaw<Array<{
+          id: string;
+          document_id: string;
+          page_number: number;
+          document_name: string;
+        }>>`
+          SELECT 
+            dc.id,
+            dc.document_id,
+            dc.page_number,
+            d.name as document_name
+          FROM document_chunks dc
+          JOIN documents d ON dc.document_id = d.id
+          WHERE d.course_id = ${courseId}
+            AND d.status = 'COMPLETED'
+          ORDER BY dc.embedding <=> ${vectorString}::vector
+          LIMIT 5;
+        `
+      : await prisma.$queryRaw<Array<{
+          id: string;
+          document_id: string;
+          page_number: number;
+          document_name: string;
+        }>>`
+          SELECT 
+            dc.id,
+            dc.document_id,
+            dc.page_number,
+            d.name as document_name
+          FROM document_chunks dc
+          JOIN documents d ON dc.document_id = d.id
+          WHERE d.status = 'COMPLETED'
+          ORDER BY dc.embedding <=> ${vectorString}::vector
+          LIMIT 5;
+        `
 
     // 3. Xây dựng ngữ cảnh Đa phương thức (Context)
-    // Tải trực tiếp file chunk PDF của từng trang từ đĩa và đẩy dạng Base64 vào Prompt
     const contextParts: any[] = []
     const citations: any[] = []
 
     for (let i = 0; i < searchResults.length; i++) {
-      const res = searchResults[i]
-      const payload = res.payload as any
-
-      if (!payload) continue
+      const chunk = searchResults[i]
 
       // Đọc file chunk PDF đã lưu từ đĩa trong lúc Ingestion
-      const chunkPath = `./uploads/chunks/${payload.documentId}_page_${payload.page}.pdf`
+      const chunkPath = `./uploads/chunks/${chunk.document_id}_page_${chunk.page_number}.pdf`
       const chunkBuffer = await readFile(chunkPath).catch(() => null)
 
       if (chunkBuffer) {
         const base64Data = chunkBuffer.toString('base64')
-        contextParts.push({ text: `[Nguồn ${i + 1}] Tài liệu: ${payload.documentName}, Trang: ${payload.page}` })
+        contextParts.push({ text: `[Nguồn ${i + 1}] Tài liệu: ${chunk.document_name}, Trang: ${chunk.page_number}` })
         contextParts.push({ inlineData: { mimeType: 'application/pdf', data: base64Data } })
       }
 
+      // Lưu documentId để kiểm tra trạng thái bị xóa sau này
       citations.push({
-        documentName: payload.documentName,
-        page: payload.page
+        documentId: chunk.document_id,
+        documentName: chunk.document_name,
+        page: chunk.page_number
       })
     }
 
@@ -69,12 +93,11 @@ HƯỚNG DẪN TRẢ LỜI:
 3. TUYỆT ĐỐI KHÔNG sử dụng định dạng markdown ( KHÔNG dùng **, ##, *, -, >, v.v). Chỉ dùng văn bản thuần túy (plain text).`
 
     // 5. Sinh câu trả lời dạng Streaming qua Gemini API
-    // Kết hợp System Prompt, History, Câu hỏi sinh viên và cả CÁC FILE PDF VỪA RETRIEVE
     const fullAnswer = await GeminiService.generateChatStream(
       systemPrompt,
       chatHistory,
       query,
-      contextParts, // Truyền trực tiếp PDF chunks vào Model
+      contextParts,
       onChunk
     )
 
@@ -84,3 +107,4 @@ HƯỚNG DẪN TRẢ LỜI:
     }
   }
 }
+

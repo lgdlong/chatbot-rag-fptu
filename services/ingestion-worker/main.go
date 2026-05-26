@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,8 +16,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	_ "github.com/lib/pq"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/qdrant/go-client/qdrant"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -33,41 +34,7 @@ var ctx = context.Background()
 func main() {
 	redisHost := getEnv("REDIS_HOST", "localhost")
 	redisPort := getEnv("REDIS_PORT", "6379")
-	qdrantURL := getEnv("QDRANT_URL", "localhost:6334") // Note: qdrant client expects host:port for gRPC
-	qdrantKey := os.Getenv("QDRANT_API_KEY")
-
-	// Phân tích cú pháp QDRANT_URL để lấy Host, Port, và UseTLS
-	host := "localhost"
-	port := 6334
-	useTLS := false
-
-	urlStr := qdrantURL
-	if len(urlStr) >= 7 && urlStr[:7] == "http://" {
-		urlStr = urlStr[7:]
-	} else if len(urlStr) >= 8 && urlStr[:8] == "https://" {
-		urlStr = urlStr[8:]
-		useTLS = true
-	}
-
-	// Tách Host và Port
-	lastColon := -1
-	for i := len(urlStr) - 1; i >= 0; i-- {
-		if urlStr[i] == ':' {
-			lastColon = i
-			break
-		}
-	}
-	if lastColon != -1 {
-		host = urlStr[:lastColon]
-		portStr := urlStr[lastColon+1:]
-		if portStr == "6333" {
-			port = 6334 // Tự động ánh xạ cổng HTTP (6333) sang cổng gRPC (6334)
-		} else {
-			fmt.Sscanf(portStr, "%d", &port)
-		}
-	} else {
-		host = urlStr
-	}
+	dbUrl := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/chatbot_rag?sslmode=disable")
 
 	// 1. Kết nối Redis
 	rdb := redis.NewClient(&redis.Options{
@@ -75,17 +42,17 @@ func main() {
 	})
 	defer rdb.Close()
 
-	// 2. Kết nối Qdrant gRPC
-	qClient, err := qdrant.NewClient(&qdrant.Config{
-		Host:   host,
-		Port:   port,
-		APIKey: qdrantKey,
-		UseTLS: useTLS,
-	})
+	// 2. Kết nối PostgreSQL
+	db, err := sql.Open("postgres", dbUrl)
 	if err != nil {
-		log.Fatalf("[Qdrant] Failed to create client: %v", err)
+		log.Fatalf("[PostgreSQL] Failed to open connection: %v", err)
 	}
-	defer qClient.Close()
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		log.Fatalf("[PostgreSQL] Failed to ping database: %v", err)
+	}
+	log.Println("[PostgreSQL] Connected to database")
 
 	log.Println("[Worker] Golang Ingestion Worker is running and listening to queue...")
 
@@ -112,7 +79,7 @@ func main() {
 		// Kích hoạt webhook báo trạng thái: PROCESSING
 		updateDocumentStatus(payload.DocumentId, "PROCESSING", "")
 
-		err = processDocument(payload, qClient)
+		err = processDocument(payload, db)
 		if err != nil {
 			log.Printf("[Worker] Failed to process document %s: %v", payload.DocumentId, err)
 			updateDocumentStatus(payload.DocumentId, "FAILED", err.Error())
@@ -123,7 +90,7 @@ func main() {
 	}
 }
 
-func processDocument(payload JobPayload, qClient *qdrant.Client) error {
+func processDocument(payload JobPayload, db *sql.DB) error {
 	filePath := payload.FilePath
 
 	// Tạo thư mục chunks tạm thời
@@ -188,29 +155,20 @@ func processDocument(payload JobPayload, qClient *qdrant.Client) error {
 			return fmt.Errorf("gemini embedding error on page %d: %v", pageNumber, err)
 		}
 
-		// Convert []float32 to float32 slice for Qdrant client
-		// (Qdrant client expects float32 slice for Cosine similarity vector)
-		
-		collectionName := "fptu_rag_documents"
-		
-		_, err = qClient.Upsert(context.Background(), &qdrant.UpsertPoints{
-			CollectionName: collectionName,
-			Points: []*qdrant.PointStruct{
-				{
-					Id:      qdrant.NewIDUUID(uuid.NewString()),
-					Vectors: qdrant.NewVectors(vector...),
-					Payload: qdrant.NewValueMap(map[string]interface{}{
-						"organizationId": payload.OrganizationId,
-						"courseId":       payload.CourseId,
-						"documentId":     payload.DocumentId,
-						"documentName":   payload.DocumentName,
-						"page":           pageNumber,
-					}),
-				},
-			},
-		})
+		// Chuyển vector thành chuỗi mảng dạng JSON để insert vào pgvector
+		vectorJSON, err := json.Marshal(vector)
 		if err != nil {
-			return fmt.Errorf("qdrant upsert error on page %d: %v", pageNumber, err)
+			return fmt.Errorf("failed to marshal vector on page %d: %v", pageNumber, err)
+		}
+
+		// Insert vào PostgreSQL (Bảng document_chunks)
+		chunkId := uuid.NewString()
+		_, err = db.Exec(`
+			INSERT INTO document_chunks (id, document_id, content, page_number, embedding)
+			VALUES ($1, $2, $3, $4, $5)
+		`, chunkId, payload.DocumentId, "", pageNumber, string(vectorJSON))
+		if err != nil {
+			return fmt.Errorf("postgres insert error on page %d: %v", pageNumber, err)
 		}
 
 		pageNumber++
