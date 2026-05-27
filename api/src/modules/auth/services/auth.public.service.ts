@@ -1,5 +1,4 @@
 import { UserRepository } from '../repositories/user.repository.js'
-import { OrganizationRepository } from '../repositories/organization.repository.js'
 
 export interface UserDTO {
   id: string
@@ -7,13 +6,6 @@ export interface UserDTO {
   email: string
   role: string | null
   image: string | null
-}
-
-export interface OrganizationDTO {
-  id: string
-  name: string
-  slug: string
-  logo: string | null
 }
 
 export class AuthPublicService {
@@ -26,17 +18,6 @@ export class AuthPublicService {
       email: user.email,
       role: user.role,
       image: user.image,
-    }
-  }
-
-  static async getOrganizationById(id: string): Promise<OrganizationDTO | null> {
-    const org = await OrganizationRepository.findById(id)
-    if (!org) return null
-    return {
-      id: org.id,
-      name: org.name,
-      slug: org.slug,
-      logo: org.logo,
     }
   }
 }

@@ -42,31 +42,6 @@ async function main() {
     })
     console.log(`[Prisma] Account credentials ready for user`)
 
-    const org = await prisma.organization.upsert({
-      where: { slug: 'fptu-e2e-test-org' },
-      update: {},
-      create: {
-        id: 'org-test-e2e-id',
-        name: 'FPT University E2E Test Org',
-        slug: 'fptu-e2e-test-org',
-        createdAt: new Date(),
-      },
-    })
-    console.log(`[Prisma] Organization ready: ${org.name} (${org.id})`)
-
-    // Upsert member
-    await prisma.member.upsert({
-      where: { id: 'member-test-e2e-id' },
-      update: {},
-      create: {
-        id: 'member-test-e2e-id',
-        organizationId: org.id,
-        userId: user.id,
-        role: 'member',
-        createdAt: new Date(),
-      },
-    })
-
     const course = await prisma.course.upsert({
       where: { id: 'course-test-e2e-id' },
       update: {},
@@ -74,7 +49,6 @@ async function main() {
         id: 'course-test-e2e-id',
         code: 'SWD392_E2E',
         name: 'Software Architecture E2E Test',
-        organizationId: org.id,
       },
     })
     console.log(`[Prisma] Course ready: ${course.name} (${course.id})`)
@@ -106,7 +80,7 @@ async function main() {
     
     const jobPayload = {
       documentId: doc.id,
-      organizationId: org.id,
+      organizationId: "org-default",
       courseId: course.id,
       filePath: `./uploads/${uniqueFileName}`,
       documentName: doc.name,

@@ -109,25 +109,11 @@ async function runTests() {
     // Tạo course test
     const testCourseId = crypto.randomUUID();
     
-    // Tìm hoặc tạo Organization test
-    let org = await prisma.organization.findFirst();
-    if (!org) {
-      org = await prisma.organization.create({
-        data: {
-          id: crypto.randomUUID(),
-          name: "FPT University Test",
-          slug: `fptu-test-${Date.now()}`,
-          createdAt: new Date()
-        }
-      });
-    }
-
     await prisma.course.create({
       data: {
         id: testCourseId,
         code: "SWD392_TEST",
         name: "Software Design Test Course",
-        organizationId: org.id
       }
     });
 
