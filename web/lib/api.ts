@@ -1,104 +1,116 @@
+// web/lib/api.ts
 export const API_BASE_URL = "http://localhost:8000";
 
-interface RequestOptions extends RequestInit {
-  json?: any;
-}
-
-async function fetchAPI(path: string, options: RequestOptions = {}) {
-  const url = `${API_BASE_URL}${path}`;
-  const headers = new Headers(options.headers);
-
-  if (options.json) {
-    headers.set("Content-Type", "application/json");
-    options.body = JSON.stringify(options.json);
-  }
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include", // Ensure cookies are sent and received
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    let errorMessage = "An error occurred";
-    try {
-      const parsed = JSON.parse(text);
-      errorMessage = parsed.error || errorMessage;
-    } catch {
-      errorMessage = text || errorMessage;
-    }
-    throw new Error(errorMessage);
-  }
-
-  return response.json();
-}
+// Biến lưu trạng thái user ảo trên RAM
+let mockUser: any = null;
 
 export const api = {
-  // Check auth session
-  getSession: () => fetchAPI("/api/auth/get-session"),
-
-  // Developer Bypass Login
-  devLogin: () => fetchAPI("/api/chat/dev-login", { method: "POST" }),
-
-  // Fetch all courses
-  getCourses: () => fetchAPI("/api/chat/courses"),
-
-  // Fetch documents for a course
-  getDocuments: (courseId: string) =>
-    fetchAPI(`/api/chat/courses/${courseId}/documents`),
-
-  // Upload document
-  uploadDocument: async (courseId: string, file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const response = await fetch(
-      `${API_BASE_URL}/api/courses/${courseId}/documents`,
-      {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      },
-    );
-
-    if (!response.ok) {
-      const text = await response.text();
-      let errorMessage = "Upload failed";
-      try {
-        const parsed = JSON.parse(text);
-        errorMessage = parsed.error || errorMessage;
-      } catch {
-        errorMessage = text || errorMessage;
-      }
-      throw new Error(errorMessage);
-    }
-
-    return response.json();
+  // 1. Kiểm tra session
+  getSession: async () => {
+    await new Promise((r) => setTimeout(r, 500));
+    if (!mockUser) throw new Error("Chưa đăng nhập");
+    return { user: mockUser };
   },
 
-  // Delete document
-  deleteDocument: (courseId: string, documentId: string) =>
-    fetchAPI(`/api/courses/${courseId}/documents/${documentId}`, {
-      method: "DELETE",
-    }),
+  // 2. Đăng nhập giả lập hỗ trợ 3 Role
+  devLogin: async (role: 'student' | 'lecturer' | 'admin') => {
+    await new Promise((r) => setTimeout(r, 800));
 
-  // Get user sessions
-  getChatSessions: () => fetchAPI("/api/chat/sessions"),
+    // Gán thông tin user tùy theo role được chọn
+    if (role === 'student') {
+      mockUser = { id: "stu1", name: "Sinh viên FPTU", role: "student" };
+    } else if (role === 'lecturer') {
+      mockUser = { id: "lec1", name: "Giảng viên FPTU", role: "lecturer" };
+    } else {
+      mockUser = { id: "adm1", name: "Quản trị viên Hệ thống", role: "admin" };
+    }
 
-  // Create chat session
-  createChatSession: (courseId: string) =>
-    fetchAPI("/api/chat/sessions", {
-      method: "POST",
-      json: { courseId },
-    }),
+    return { success: true, user: mockUser };
+  },
 
-  // Get details for a chat session
-  getChatSessionDetails: (sessionId: string) =>
-    fetchAPI(`/api/chat/sessions/${sessionId}`),
+  // 3. Đăng xuất giả lập
+  logout: async () => {
+    await new Promise((r) => setTimeout(r, 500));
+    mockUser = null;
+    return { success: true };
+  },
+
+  // 3. Lấy danh sách khóa học
+  getCourses: async () => {
+    await new Promise((r) => setTimeout(r, 600));
+    return {
+      courses: [
+        { id: "c1", code: "SWD392", name: "Software Architecture and Design" },
+        { id: "c2", code: "PRJ301", name: "Java Web Development" },
+      ],
+    };
+  },
+
+  // 4. Lấy danh sách tài liệu
+  getDocuments: async (courseId: string) => {
+    await new Promise((r) => setTimeout(r, 500));
+    if (courseId === "c1") {
+      return {
+        documents: [
+          { id: "d1", name: "Chapter_1_UML.pdf", fileType: "pdf", status: "COMPLETED", createdAt: new Date().toISOString() },
+          { id: "d2", name: "Chapter_2_Design_Patterns.pdf", fileType: "pdf", status: "PROCESSING", createdAt: new Date().toISOString() },
+        ],
+      };
+    }
+    return { documents: [] };
+  },
+
+  // 5. Nạp tài liệu mới (Upload)
+  uploadDocument: async (courseId: string, file: File) => {
+    await new Promise((r) => setTimeout(r, 1500)); // Giả lập upload mất 1.5s
+    return { success: true };
+  },
+
+  // 6. Xóa tài liệu
+  deleteDocument: async (courseId: string, documentId: string) => {
+    await new Promise((r) => setTimeout(r, 800));
+    return { success: true };
+  },
+
+  // 7. Lấy danh sách lịch sử Chat
+  getChatSessions: async () => {
+    await new Promise((r) => setTimeout(r, 400));
+    return {
+      sessions: [
+        { id: "s1", title: "Hỏi về Use Case", updatedAt: new Date().toISOString(), course: { name: "Software Architecture and Design", code: "SWD392" } },
+      ],
+    };
+  },
+
+  // 8. Tạo phòng chat mới
+  createChatSession: async (courseId: string) => {
+    await new Promise((r) => setTimeout(r, 600));
+    return { session: { id: "s_new_" + Date.now() } };
+  },
+
+  // 9. Lấy chi tiết tin nhắn trong 1 phòng chat
+  getChatSessionDetails: async (sessionId: string) => {
+    await new Promise((r) => setTimeout(r, 500));
+    return {
+      session: {
+        id: sessionId,
+        course: { name: "Software Architecture and Design", code: "SWD392" },
+        messages: [
+          { id: "m1", sender: "USER", content: "Use Case Diagram là gì?", createdAt: new Date().toISOString() },
+          {
+            id: "m2",
+            sender: "ASSISTANT",
+            content: "Use Case Diagram là một biểu đồ trong UML dùng để mô tả các chức năng của hệ thống dưới góc nhìn của người dùng.",
+            citations: [{ documentName: "Chapter_1_UML.pdf", page: 12 }],
+            createdAt: new Date().toISOString()
+          },
+        ],
+      },
+    };
+  },
 };
 
-// SSE Chat Streaming helper
+// 10. Streaming Tin nhắn giả lập (Như ChatGPT đang gõ chữ)
 export async function streamChat(
   sessionId: string,
   message: string,
@@ -106,75 +118,16 @@ export async function streamChat(
   onCitations: (citations: any[]) => void,
   onError: (error: string) => void,
 ) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/chat/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ sessionId, message }),
-      credentials: "include",
-    });
+  const dummyResponse = " Chào bạn, đây là câu trả lời được stream trực tiếp từ Frontend để test giao diện. Nếu cấu trúc này ổn, khi ghép API thật vào, hệ thống RAG sẽ trả lời mượt mà y như thế này!";
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      try {
-        const errorJson = JSON.parse(errorText);
-        onError(errorJson.error || "Failed to connect");
-      } catch {
-        onError(errorText || "Server error");
-      }
-      return;
+  let i = 0;
+  const interval = setInterval(() => {
+    onChunk(dummyResponse.charAt(i));
+    i++;
+    if (i >= dummyResponse.length) {
+      clearInterval(interval);
+      // Gửi nguồn trích dẫn sau khi gõ xong
+      onCitations([{ documentName: "Chapter_1_UML.pdf", page: 15 }]);
     }
-
-    if (!response.body) {
-      onError("Response body is null");
-      return;
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      let currentEvent = "";
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        if (trimmed.startsWith("event:")) {
-          currentEvent = trimmed.slice(6).trim();
-        } else if (trimmed.startsWith("data:")) {
-          const dataStr = trimmed.slice(5).trim();
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (currentEvent === "message" || !currentEvent) {
-              if (parsed.chunk) {
-                onChunk(parsed.chunk);
-              }
-            } else if (currentEvent === "citations") {
-              if (parsed.citations) {
-                onCitations(parsed.citations);
-              }
-            } else if (currentEvent === "error") {
-              if (parsed.error) {
-                onError(parsed.error);
-              }
-            }
-          } catch (e) {
-            console.error("Failed to parse SSE data:", dataStr, e);
-          }
-        }
-      }
-    }
-  } catch (err: any) {
-    onError(err.message || "Network error");
-  }
+  }, 30); // Tốc độ gõ: 30ms/chữ
 }
