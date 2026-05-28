@@ -102,6 +102,18 @@ export const openApiDoc = {
           title: { type: "string", example: "Hỏi về SOLID principles" },
           userId: { type: "string", example: "user-123" },
           courseId: { type: "string", example: "course-123" },
+          scopeMode: { type: "string", example: "ALL_COURSES", enum: ["ALL_COURSES", "SELECTED_COURSES"] },
+          scopedCourses: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", example: "course-123" },
+                code: { type: "string", example: "SWD392" },
+                name: { type: "string", example: "Software Architecture" }
+              }
+            }
+          },
           createdAt: { type: "string", example: "2026-05-27T16:38:00.000Z" }
         }
       },
@@ -536,7 +548,7 @@ export const openApiDoc = {
       },
       post: {
         summary: "Tạo phiên hội thoại chat mới",
-        description: "Tạo phiên hội thoại mới cho sinh viên. Có thể gắn kèm `courseId` để thu hẹp phạm vi tìm kiếm RAG theo môn học đó, hoặc không truyền để thực hiện chat đa môn học toàn cục.",
+        description: "Tạo phiên hội thoại mới cho sinh viên. Có thể truyền `scopeMode` và `courseIds` để chọn phạm vi tài liệu, hoặc dùng payload legacy `courseId` trong giai đoạn chuyển tiếp.",
         security: [{ cookieAuth: [] }],
         requestBody: {
           required: false,
@@ -545,7 +557,14 @@ export const openApiDoc = {
               schema: {
                 type: "object",
                 properties: {
-                  courseId: { type: "string", example: "course-123", description: "ID môn học (tùy chọn)." }
+                  scopeMode: { type: "string", enum: ["ALL_COURSES", "SELECTED_COURSES"], example: "ALL_COURSES" },
+                  courseIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    example: ["course-123", "course-456"],
+                    description: "Danh sách môn học được chọn khi scopeMode là SELECTED_COURSES."
+                  },
+                  courseId: { type: "string", example: "course-123", description: "Payload legacy để tương thích ngược." }
                 }
               }
             }
@@ -776,7 +795,7 @@ export const openApiDoc = {
     "/api/chat/send": {
       post: {
         summary: "Gửi tin nhắn và truyền luồng câu trả lời (SSE Stream)",
-        description: "Gửi câu hỏi của sinh viên. Hệ thống tự động kiểm tra hạn ngạch của sinh viên (Basic tối đa 10 câu/ngày). Nếu hợp lệ, hệ thống sẽ thực hiện truy vấn RAG (từ Vector DB Qdrant), gọi mô hình LLM Gemini sinh phản hồi và truyền luồng Server-Sent Events (SSE) từng từ về client để tạo hiệu ứng gõ phím mượt mà. Kết quả trả về chứa mảng trích dẫn nguồn (citations). Cuộc hội thoại đầu tiên sẽ được tự động tóm tắt qua AI để đặt tiêu đề.",
+        description: "Gửi câu hỏi của sinh viên. Hệ thống tự động kiểm tra hạn ngạch của sinh viên theo cửa sổ 5 giờ (Basic tối đa 10 câu/5 giờ). Nếu hợp lệ, hệ thống sẽ thực hiện truy vấn RAG (từ Vector DB Qdrant), gọi mô hình LLM Gemini sinh phản hồi và truyền luồng Server-Sent Events (SSE) từng từ về client để tạo hiệu ứng gõ phím mượt mà. Kết quả trả về chứa mảng trích dẫn nguồn (citations). Cuộc hội thoại đầu tiên sẽ được tự động tóm tắt qua AI để đặt tiêu đề.",
         security: [{ cookieAuth: [] }],
         requestBody: {
           required: true,
@@ -814,14 +833,14 @@ export const openApiDoc = {
             }
           },
           "403": {
-            description: "Vượt quá hạn ngạch tin nhắn hàng ngày (cần nâng cấp gói dịch vụ).",
+            description: "Vượt quá hạn ngạch tin nhắn trong cửa sổ 5 giờ hiện tại (cần nâng cấp gói dịch vụ).",
             content: {
               "application/json": {
                 schema: {
                   type: "object",
                   properties: {
                     error: { type: "string", example: "LIMIT_EXCEEDED" },
-                    message: { type: "string", example: "Bạn đã dùng hết giới hạn câu hỏi trong ngày. Hãy nâng cấp gói dịch vụ..." }
+                    message: { type: "string", example: "Bạn đã dùng hết giới hạn câu hỏi trong 5 giờ hiện tại. Hãy nâng cấp gói dịch vụ..." }
                   }
                 }
               }
@@ -1054,7 +1073,7 @@ export const openApiDoc = {
     "/api/subscriptions/me": {
       get: {
         summary: "Lấy thông tin gói dịch vụ cá nhân",
-        description: "Kiểm tra gói dịch vụ hiện tại (BASIC, SILVER, GOLD), số câu hỏi đã gửi trong ngày, hạn ngạch tối đa và tự động reset nếu bước sang ngày mới.",
+        description: "Kiểm tra gói dịch vụ hiện tại (BASIC, SILVER, GOLD), số câu hỏi đã gửi trong cửa sổ 5 giờ hiện tại, hạn ngạch tối đa và tự động reset sau mỗi 5 giờ.",
         security: [{ cookieAuth: [] }],
         responses: {
           "200": {
@@ -1092,7 +1111,7 @@ export const openApiDoc = {
     "/api/subscriptions/upgrade": {
       post: {
         summary: "Nâng cấp gói dịch vụ (Tạo link thanh toán)",
-        description: "Tạo link thanh toán để nâng cấp lên SILVER (10.000 VNĐ, 50 tin nhắn/ngày) hoặc GOLD (20.000 VNĐ, 200 tin nhắn/ngày). Giao dịch được lưu ở trạng thái PENDING. Hỗ trợ SDK PayOS chính thức hoặc mock checkout nếu cấu hình chưa được kích hoạt.",
+        description: "Tạo link thanh toán để nâng cấp lên SILVER (10.000 VNĐ, 50 tin nhắn/5 giờ) hoặc GOLD (20.000 VNĐ, 200 tin nhắn/5 giờ). Giao dịch được lưu ở trạng thái PENDING. Hỗ trợ SDK PayOS chính thức hoặc mock checkout nếu cấu hình chưa được kích hoạt.",
         security: [{ cookieAuth: [] }],
         requestBody: {
           required: true,

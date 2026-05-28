@@ -20,6 +20,9 @@ export const ENV = {
   QDRANT_API_KEY: process.env.QDRANT_API_KEY || "",
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
   GEMINI_TEXT_MODEL: process.env.GEMINI_TEXT_MODEL || "gemini-3.1-flash-lite",
+  RAG_MAX_DISTANCE: process.env.RAG_MAX_DISTANCE
+    ? Number.parseFloat(process.env.RAG_MAX_DISTANCE)
+    : 0.35,
   GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
   REDIS_HOST: process.env.REDIS_HOST || "localhost",

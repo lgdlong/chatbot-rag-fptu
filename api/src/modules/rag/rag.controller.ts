@@ -9,6 +9,18 @@ import { ENV } from "../../config/env.js";
 
 export const ragRouter = new Hono();
 
+type CourseListItem = {
+  id: string;
+  code: string;
+  name: string;
+  createdAt: Date;
+  documentCount: number;
+};
+
+function isLecturerOrAdmin(role: string | null | undefined) {
+  return role === "LECTURER" || role === "ADMIN";
+}
+
 async function removeFileIfExists(filePath: string) {
   try {
     await unlink(filePath);
@@ -41,13 +53,252 @@ async function removeChunkFiles(documentId: string) {
   }
 }
 
+async function requireLecturerOrAdmin(c: Context) {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) {
+    return { error: c.json({ error: "Unauthorized" }, 401) as Response, session: null };
+  }
+
+  if (!isLecturerOrAdmin(session.user.role)) {
+    return { error: c.json({ error: "Forbidden: Lecturer access required" }, 403) as Response, session: null };
+  }
+
+  return { error: null, session };
+}
+
+ragRouter.get("/", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  try {
+    const courses = await prisma.course.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        _count: {
+          select: {
+            documents: true,
+          },
+        },
+      },
+    });
+
+    const payload = courses.map((course) => ({
+      id: course.id,
+      code: course.code,
+      name: course.name,
+      createdAt: course.createdAt,
+      documentCount: course._count.documents,
+    })) satisfies CourseListItem[];
+
+    return c.json({ courses: payload });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch courses";
+    return c.json({ error: message }, 500);
+  }
+});
+
+ragRouter.post("/", async (c) => {
+  const authResult = await requireLecturerOrAdmin(c);
+  if (authResult.error) {
+    return authResult.error;
+  }
+
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as { code?: unknown; name?: unknown };
+    const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+
+    if (!code || !name) {
+      return c.json({ error: "Course code and name are required" }, 400);
+    }
+
+    const duplicateCourse = await prisma.course.findFirst({
+      where: {
+        code: {
+          equals: code,
+          mode: "insensitive",
+        },
+      },
+      select: { id: true },
+    });
+
+    if (duplicateCourse) {
+      return c.json({ error: "Course code already exists" }, 409);
+    }
+
+    const course = await prisma.course.create({
+      data: {
+        code,
+        name,
+      },
+    });
+
+    return c.json(
+      {
+        course: {
+          id: course.id,
+          code: course.code,
+          name: course.name,
+          createdAt: course.createdAt,
+          documentCount: 0,
+        },
+      },
+      201,
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create course";
+    return c.json({ error: message }, 500);
+  }
+});
+
+ragRouter.patch("/:courseId", async (c) => {
+  const authResult = await requireLecturerOrAdmin(c);
+  if (authResult.error) {
+    return authResult.error;
+  }
+
+  const courseId = c.req.param("courseId");
+
+  try {
+    const body = (await c.req.json().catch(() => ({}))) as { code?: unknown; name?: unknown };
+    const code = typeof body.code === "string" ? body.code.trim().toUpperCase() : "";
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+
+    if (!code || !name) {
+      return c.json({ error: "Course code and name are required" }, 400);
+    }
+
+    const existingCourse = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: { id: true },
+    });
+
+    if (!existingCourse) {
+      return c.json({ error: "Course not found" }, 404);
+    }
+
+    const duplicateCourse = await prisma.course.findFirst({
+      where: {
+        code: {
+          equals: code,
+          mode: "insensitive",
+        },
+        NOT: {
+          id: courseId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (duplicateCourse) {
+      return c.json({ error: "Course code already exists" }, 409);
+    }
+
+    const updatedCourse = await prisma.course.update({
+      where: { id: courseId },
+      data: {
+        code,
+        name,
+      },
+      include: {
+        _count: {
+          select: {
+            documents: true,
+          },
+        },
+      },
+    });
+
+    return c.json({
+      course: {
+        id: updatedCourse.id,
+        code: updatedCourse.code,
+        name: updatedCourse.name,
+        createdAt: updatedCourse.createdAt,
+        documentCount: updatedCourse._count.documents,
+      },
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to update course";
+    return c.json({ error: message }, 500);
+  }
+});
+
+ragRouter.delete("/:courseId", async (c) => {
+  const authResult = await requireLecturerOrAdmin(c);
+  if (authResult.error) {
+    return authResult.error;
+  }
+
+  const courseId = c.req.param("courseId");
+
+  try {
+    const course = await prisma.course.findUnique({
+      where: { id: courseId },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        _count: {
+          select: {
+            documents: true,
+          },
+        },
+      },
+    });
+
+    if (!course) {
+      return c.json({ error: "Course not found" }, 404);
+    }
+
+    if (course._count.documents > 0) {
+      return c.json(
+        {
+          error: "Course still has documents. Delete all documents before removing the course.",
+        },
+        409,
+      );
+    }
+
+    await prisma.course.delete({
+      where: { id: courseId },
+    });
+
+    return c.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to delete course";
+    return c.json({ error: message }, 500);
+  }
+});
+
+ragRouter.get("/:courseId/documents", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const courseId = c.req.param("courseId");
+  try {
+    const documents = await prisma.document.findMany({
+      where: { courseId },
+      orderBy: { createdAt: "desc" },
+    });
+    return c.json({ documents });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch documents";
+    return c.json({ error: message }, 500);
+  }
+});
+
 /**
  * Tải file và kích hoạt index tài liệu vào Vector DB
  */
 ragRouter.post("/:courseId/documents", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
-    return c.json({ error: "Unauthorized" }, 401);
+  const authResult = await requireLecturerOrAdmin(c);
+  if (authResult.error) {
+    return authResult.error;
   }
 
   const courseId = c.req.param("courseId");
@@ -123,9 +374,9 @@ ragRouter.post("/:courseId/documents", async (c) => {
 });
 
 export async function deleteDocumentHandler(c: Context) {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
-    return c.json({ error: "Unauthorized" }, 401);
+  const authResult = await requireLecturerOrAdmin(c);
+  if (authResult.error) {
+    return authResult.error;
   }
 
   const courseId = c.req.param("courseId");

@@ -75,7 +75,7 @@ export class GeminiService {
       contents,
       config: {
         systemInstruction: systemPrompt,
-        temperature: 0.2, // Giảm sáng tạo để tăng độ chính xác trích xuất kiến thức
+        temperature: 0, // Giảm tối đa sáng tạo để ưu tiên bám sát tài liệu
       },
     })
 
