@@ -40,7 +40,7 @@ sequenceDiagram
     participant Gemini as Google Gemini AI
 
     Student->>Hono: POST /api/chat/send { sessionId, message }
-    Note over Hono: Kiểm tra hạn ngạch tin nhắn trong ngày
+    Note over Hono: Kiểm tra hạn ngạch tin nhắn trong 5 giờ hiện tại
     Hono->>DB: Lấy lịch sử chat & courseId
     Hono->>Qdrant: Tìm kiếm ngữ nghĩa thô (Vector search)
     Qdrant-->>Hono: Trả về các slide bài giảng phù hợp nhất

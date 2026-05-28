@@ -66,18 +66,18 @@
 *   **Mô tả**: Học sinh gửi câu hỏi bằng ngôn ngữ tự nhiên để hỏi đáp về kiến thức môn học. Chatbot phân tích ngữ cảnh, tìm kiếm tài liệu (RAG) và trả về câu trả lời kèm nguồn trích dẫn.
 *   **Tiền điều kiện (Preconditions)**:
     1. Học sinh đã đăng nhập thành công vào hệ thống.
-    2. Tài khoản học sinh còn lượt sử dụng trong ngày (dựa theo gói Subscription hiện tại).
+    2. Tài khoản học sinh còn lượt sử dụng trong cửa sổ 5 giờ hiện tại (dựa theo gói Subscription hiện tại).
 *   **Luồng xử lý cơ bản (Basic Flow)**:
     1. Học sinh truy cập giao diện Chatbot, chọn phiên chat mới hoặc cũ.
     2. Học sinh nhập câu hỏi vào ô chat và gửi đi.
-    3. Hệ thống kiểm tra số lượt tin nhắn khả dụng của sinh viên trong ngày.
+    3. Hệ thống kiểm tra số lượt tin nhắn khả dụng của sinh viên trong cửa sổ 5 giờ hiện tại.
     4. Hệ thống tiến hành truy vấn cơ sở dữ liệu vector (Vector Database) để tìm kiếm các đoạn văn bản (chunks) có độ tương đồng ngữ nghĩa cao nhất.
     5. Hệ thống kết hợp câu hỏi ban đầu và các ngữ cảnh tìm được thành một Prompt hoàn chỉnh, gửi đến Mô hình ngôn ngữ lớn (LLM).
     6. LLM sinh ra câu trả lời dựa trên ngữ cảnh được cung cấp.
     7. Hệ thống định dạng nguồn trích dẫn chi tiết (slide, số trang tài liệu nguồn) và stream câu trả lời về màn hình học sinh.
-    8. Hệ thống trừ đi 1 lượt câu hỏi trong hạn mức ngày của học sinh.
+    8. Hệ thống trừ đi 1 lượt câu hỏi trong hạn mức 5 giờ của học sinh.
 *   **Luồng thay thế (Alternative Flows)**:
-    *   *Alt 1: Hết lượt sử dụng trong ngày*
+    *   *Alt 1: Hết lượt sử dụng trong cửa sổ 5 giờ hiện tại*
         *   Tại bước 3, hệ thống phát hiện tài khoản đã vượt giới hạn ngày.
         *   Hệ thống không gọi RAG/LLM, trả về thông báo lỗi yêu cầu nâng cấp gói dịch vụ (Subscription).
     *   *Alt 2: Không tìm thấy ngữ cảnh phù hợp trong tài liệu*
@@ -85,7 +85,7 @@
         *   Hệ thống từ chối trả lời ngoài phạm vi bài học và phản hồi: *"Xin lỗi, tôi không tìm thấy thông tin này trong tài liệu bài học. Bạn vui lòng đặt câu hỏi khác."* (Tránh hallucination).
 *   **Hậu điều kiện (Postconditions)**:
     *   Câu hỏi và câu trả lời được lưu vào lịch sử phiên chat.
-    *   Giới hạn lượt dùng trong ngày của học sinh được cập nhật.
+    *   Giới hạn lượt dùng trong cửa sổ 5 giờ của học sinh được cập nhật.
 
 #### 3.2. [UC-07.1] Tải lên tài liệu (Upload Document < 50MB)
 *   **Tác nhân chính**: Giảng viên (Lecturer)

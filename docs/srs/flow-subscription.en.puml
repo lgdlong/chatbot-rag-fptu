@@ -3,19 +3,31 @@ title Subscription Flow Diagram
 
 |Student|
 start
-:Access Subscription page;
-:View plan info and benefits (Silver, Gold);
-:Select plan and confirm registration/payment;
+:Open subscription page;
+:Review Basic / Silver / Gold plans;
+:Choose target upgrade plan;
+:Confirm upgrade request;
 
 |Subscription System|
-:Initiate transaction and redirect to payment;
-
-|System Handler|
-:Verify payment transaction via Webhook/API;
-:Update plan tier & account limits in Database;
-
-|Student|
-:Use system with new benefit limits;
+:Verify authenticated user;
+:Create upgrade transaction;
+if (Running in test/demo mode?) then (Yes)
+  :Mark transaction as paid immediately;
+  :Upgrade subscription and reset quota instantly;
+  |Student|
+  :Receive successful upgrade notification;
+else (No)
+  :Generate SePay reference and QR checkout page;
+  |Student|
+  :Transfer payment using checkout instructions;
+  |System Handler|
+  :Receive valid SePay webhook;
+  :Match reference code and transfer amount;
+  :Update transaction to PAID;
+  :Upgrade subscription and reset quota;
+  |Student|
+  :Use system with updated quota;
+endif
 
 stop
 @enduml

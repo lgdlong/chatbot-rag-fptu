@@ -249,7 +249,7 @@ Xóa vĩnh viễn phiên chat và toàn bộ lịch sử tin nhắn liên quan k
 
 #### Mô tả
 Điểm cuối cốt lõi của cuộc hội thoại:
-1. **Kiểm tra hạn mức:** Server tự động kiểm tra số lượng tin nhắn đã gửi trong ngày của sinh viên. Nếu vượt quá giới hạn gói dịch vụ (Basic tối đa 10 câu/ngày), server lập tức chặn và trả về lỗi `403 Forbidden` mã `"LIMIT_EXCEEDED"`.
+1. **Kiểm tra hạn mức:** Server tự động kiểm tra số lượng tin nhắn đã gửi trong cửa sổ 5 giờ hiện tại của sinh viên. Nếu vượt quá giới hạn gói dịch vụ (Basic tối đa 10 câu/5 giờ), server lập tức chặn và trả về lỗi `403 Forbidden` mã `"LIMIT_EXCEEDED"`.
 2. **Truy vấn RAG:** Thực hiện tìm kiếm ngữ nghĩa thô trên Qdrant Vector DB để trích xuất các phân đoạn slide bài giảng PDF phù hợp nhất làm tài liệu tham khảo.
 3. **Gọi AI Gemini & Streaming:** Gửi prompt kết hợp ngữ cảnh slide cùng lịch sử trò chuyện lên Gemini LLM, mở luồng kết nối **Server-Sent Events (SSE)** truyền luồng câu trả lời từng từ về phía Client thời gian thực để tạo hiệu ứng gõ chữ mượt mà.
 4. **Tự động tóm tắt:** Nếu là câu hỏi đầu tiên của phòng chat, hệ thống tự động gọi Gemini phụ để tóm tắt câu hỏi thành một tiêu đề ngắn dưới 5 từ làm tên phòng chat.
@@ -301,7 +301,7 @@ Server sẽ mở kết nối luồng truyền trực tiếp và gửi các sự 
 ```json
 {
   "error": "LIMIT_EXCEEDED",
-  "message": "Bạn đã dùng hết giới hạn câu hỏi trong ngày. Hãy nâng cấp gói dịch vụ (Silver/Gold) để tiếp tục hỏi chatbot!"
+  "message": "Bạn đã dùng hết giới hạn câu hỏi trong 5 giờ hiện tại. Hãy nâng cấp gói dịch vụ (Silver/Gold) để tiếp tục hỏi chatbot!"
 }
 ```
 

@@ -73,9 +73,9 @@ Hệ thống phân quyền nghiêm ngặt thành 3 nhóm người dùng chính, 
 
 #### 3.4. Nhóm chức năng Subscription - Gói dịch vụ (Dành cho Student)
 Hệ thống giới hạn số lượng tin nhắn của học sinh thông qua các gói đăng ký được **tính theo chu kỳ từng tháng**. Việc thanh toán được xử lý qua cổng **SePay**.
-- **Gói Cơ bản (Basic - Mặc định)**: Cấp miễn phí khi tạo tài khoản. Giới hạn: **10 câu hỏi/ngày**.
-- **Gói Bạc (Silver)**: Trả phí gia hạn hàng tháng (Giá: **10.000 VNĐ**). Giới hạn: **50 câu hỏi/ngày**.
-- **Gói Vàng (Gold)**: Trả phí gia hạn hàng tháng (Giá: **20.000 VNĐ**). Giới hạn: **200 câu hỏi/ngày**.
+- **Gói Cơ bản (Basic - Mặc định)**: Cấp miễn phí khi tạo tài khoản. Giới hạn: **10 câu hỏi/5 giờ**.
+- **Gói Bạc (Silver)**: Trả phí gia hạn hàng tháng (Giá: **10.000 VNĐ**). Giới hạn: **50 câu hỏi/5 giờ**.
+- **Gói Vàng (Gold)**: Trả phí gia hạn hàng tháng (Giá: **20.000 VNĐ**). Giới hạn: **200 câu hỏi/5 giờ**.
 
 ---
 

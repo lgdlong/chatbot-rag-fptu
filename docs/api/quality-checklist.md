@@ -100,7 +100,7 @@ Bảng tiêu chuẩn kiểm soát chất lượng nhằm đảm bảo tài liệ
 ### 2. Phân Hệ Trò Chuyện (`00_chat.md`)
 - Phải ghi nhận định dạng truyền luồng SSE `text/event-stream`.
 - Phải đặc tả cấu trúc `citations` nguồn bài giảng gồm slide ảnh trích dẫn, trang slide số mấy và trạng thái xóa slide.
-- Phải làm rõ hạn mức tin nhắn hàng ngày của gói Basic (10 câu hỏi/ngày).
+- Phải làm rõ hạn mức tin nhắn theo cửa sổ 5 giờ của gói Basic (10 câu hỏi/5 giờ).
 
 ### 3. Phân Hệ Admin & Giảng Viên (`00_auth_admin.md`)
 - Phải chỉ ra logic phê duyệt của Admin: tạo mật khẩu tạm PBKDF2 khớp Better Auth và hiển thị duy nhất **1 lần**.

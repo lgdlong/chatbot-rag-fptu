@@ -5,34 +5,33 @@ title Sơ đồ quy trình xác thực và đăng nhập (Authentication & Login
 start
 :Truy cập trang đăng nhập;
 if (Phương thức đăng nhập?) then (Email/Password)
-  :Nhập Email và Mật khẩu;
+  :Nhập email và mật khẩu;
   :Gửi thông tin đăng nhập;
   |System Handler|
-  :Mã hóa và kiểm tra thông tin trong CSDL;
+  :Xác thực thông tin qua Better Auth;
   if (Thông tin hợp lệ?) then (Có)
-    :Tạo JWT Session và Cookie xác thực;
+    :Tạo session cookie xác thực;
     |Người dùng (User)|
-    :Đăng nhập thành công và chuyển hướng trang;
+    :Đăng nhập thành công;
+    :Được chuyển hướng theo role\n(Student / Lecturer / Admin);
   else (Không)
     |System Handler|
-    :Trả về lỗi đăng nhập;
+    :Trả lỗi đăng nhập;
     |Người dùng (User)|
-    :Hiển thị lỗi và yêu cầu nhập lại;
+    :Xem lỗi và nhập lại;
   endif
 else (Google SSO)
-  |Người dùng (User)|
-  :Chọn "Đăng nhập bằng Google";
-  :Xác thực tài khoản qua Google Prompt;
+  :Chọn "Đăng nhập với Google";
   |System Handler|
-  :Nhận Google Token và xác thực với Google API;
-  :Kiểm tra tài khoản trong CSDL;
-  if (Tài khoản đã tồn tại?) then (Chưa)
-    :Tạo tài khoản học sinh (Student) mới tự động;
-  else (Rồi)
+  :Chuyển hướng sang Google OAuth;
+  :Nhận kết quả xác thực từ Google;
+  if (Tài khoản chưa tồn tại?) then (Có)
+    :Tự tạo tài khoản mới theo luồng Better Auth;
   endif
-  :Tạo JWT Session và Cookie xác thực;
+  :Tạo session cookie xác thực;
   |Người dùng (User)|
-  :Đăng nhập thành công và chuyển hướng trang;
+  :Đăng nhập thành công;
+  :Được chuyển hướng theo role;
 endif
 
 stop

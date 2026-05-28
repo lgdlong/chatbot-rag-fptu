@@ -3,24 +3,34 @@ title Sơ đồ quy trình tải và xử lý tài liệu (Document Upload Flow)
 
 |Giảng viên (Lecturer)|
 start
-:Chuẩn bị tài liệu (PDF, DOCX, Slide);
-:Tải tài liệu lên hệ thống;
+:Mở trang quản lý môn học;
+:Chọn môn học cần nạp tài liệu;
+:Chọn file PDF;
+:Gửi yêu cầu upload;
 
 |Hệ thống Quản lý|
-:Tiếp nhận và xác thực định dạng tài liệu;
+:Kiểm tra đăng nhập và quyền Lecturer;
+:Kiểm tra file hợp lệ (PDF);
+:Tạo bản ghi tài liệu với trạng thái chờ xử lý;
+:Đưa tài liệu vào luồng ingestion;
+:Thông báo "đã đưa vào hàng đợi xử lý";
 
 |System Handler|
-:Phân tách (Chunking) & Vector hóa tài liệu (RAG Ingestion);
-:Lưu trữ văn bản và vector vào Database & Vector DB;
+:Thực hiện chunking và embedding bất đồng bộ;
+:Lưu chunks/vector vào kho dữ liệu RAG;
+:Gọi webhook nội bộ cập nhật trạng thái tài liệu;
+
+|Hệ thống Quản lý|
+:Cập nhật trạng thái tài liệu\n(COMPLETED hoặc FAILED);
 
 |Giảng viên (Lecturer)|
-:Xem danh sách tài liệu hiện tại;
+:Xem danh sách tài liệu theo môn học;
 if (Cần xóa tài liệu cũ?) then (Có)
   :Yêu cầu xóa tài liệu;
   |System Handler|
-  :Xóa dữ liệu tài liệu & vector tương ứng;
+  :Xóa metadata tài liệu và dữ liệu vector liên quan;
   |Giảng viên (Lecturer)|
-  :Cập nhật danh sách tài liệu mới;
+  :Xem lại danh sách tài liệu đã cập nhật;
 else (Không)
 endif
 

@@ -3,24 +3,34 @@ title Document Upload Flow Diagram
 
 |Lecturer|
 start
-:Prepare document (PDF, DOCX, Slide);
-:Upload document to system;
+:Open course management page;
+:Select target course;
+:Choose PDF file;
+:Submit upload request;
 
 |Management System|
-:Receive and validate document format;
+:Verify authentication and Lecturer role;
+:Validate PDF file;
+:Create document record with pending status;
+:Push document into ingestion flow;
+:Show "queued for processing" notification;
 
 |System Handler|
-:Document chunking & vectorization (RAG Ingestion);
-:Save text & vectors to Database & Vector DB;
+:Run asynchronous chunking and embedding;
+:Store chunks/vectors in RAG storage;
+:Call internal webhook to update document status;
+
+|Management System|
+:Update document status\n(COMPLETED or FAILED);
 
 |Lecturer|
-:View current document list;
-if (Need to delete old document?) then (Yes)
+:View document list by course;
+if (Need to delete outdated document?) then (Yes)
   :Request document deletion;
   |System Handler|
-  :Delete document & associated vectors;
+  :Delete document metadata and related vectors;
   |Lecturer|
-  :Update document list;
+  :Review refreshed document list;
 else (No)
 endif
 

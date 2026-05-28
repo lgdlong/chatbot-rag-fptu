@@ -1,6 +1,6 @@
 # API Đặc Tả: Gói Dịch Vụ & Thanh Toán (PayOS)
 
-Phân hệ này quản lý việc theo dõi gói dịch vụ (BASIC, SILVER, GOLD), số câu hỏi đã gửi trong ngày của sinh viên và tích hợp thanh toán trực tuyến qua PayOS để nâng cấp gói dịch vụ tăng hạn ngạch.
+Phân hệ này quản lý việc theo dõi gói dịch vụ (BASIC, SILVER, GOLD), số câu hỏi đã gửi trong cửa sổ 5 giờ hiện tại của sinh viên và tích hợp thanh toán trực tuyến qua PayOS để nâng cấp gói dịch vụ tăng hạn ngạch.
 
 ---
 
@@ -16,8 +16,8 @@ Phân hệ này quản lý việc theo dõi gói dịch vụ (BASIC, SILVER, GOL
 `GET /api/subscriptions/me`
 
 #### Mô tả
-Kiểm tra gói dịch vụ hiện tại (Basic/Silver/Gold), số lượng câu hỏi sinh viên đã gửi trong ngày và hạn mức tối đa của gói.
-**Cơ chế Edge Case tự động reset:** Khi API nhận request, server tự động so sánh ngày hiện tại với thời điểm reset cuối cùng (`lastReset`). Nếu phát hiện đã bước sang ngày mới, server sẽ tự động cập nhật số câu hỏi đã dùng (`messageCount`) về `0` và cập nhật ngày reset mới vào database PostgreSQL, đảm bảo hạn mức của sinh viên được khôi phục mỗi ngày mà không cần chạy các tiến trình cron job ngầm.
+Kiểm tra gói dịch vụ hiện tại (Basic/Silver/Gold), số lượng câu hỏi sinh viên đã gửi trong cửa sổ 5 giờ hiện tại và hạn mức tối đa của gói.
+**Cơ chế Edge Case tự động reset:** Khi API nhận request, server tự động so sánh thời điểm hiện tại với thời điểm reset cuối cùng (`lastReset`). Nếu đã trôi qua ít nhất 5 giờ, server sẽ tự động cập nhật số câu hỏi đã dùng (`messageCount`) về `0` và cập nhật `lastReset` mới vào database PostgreSQL, đảm bảo hạn mức của sinh viên được khôi phục theo từng cửa sổ 5 giờ mà không cần chạy cron job ngầm.
 
 #### Yêu cầu
 - **Authentication:** ✅ Có yêu cầu (Session Cookie Better Auth).
@@ -45,8 +45,8 @@ Kiểm tra gói dịch vụ hiện tại (Basic/Silver/Gold), số lượng câu
 | :--- | :--- | :--- | :--- |
 | `subscription.id` | string | ID duy nhất của bản ghi gói dịch vụ. | `"sub-222"` |
 | `subscription.tier` | string | Gói hiện tại: `"BASIC"` (mặc định), `"SILVER"`, hoặc `"GOLD"`. | `"BASIC"` |
-| `subscription.maxMessages` | integer | Số câu hỏi tối đa sinh viên được gửi trong một ngày. | `10` |
-| `subscription.messageCount` | integer | Số câu hỏi sinh viên đã gửi thành công trong ngày hôm nay. | `3` |
+| `subscription.maxMessages` | integer | Số câu hỏi tối đa sinh viên được gửi trong một cửa sổ 5 giờ. | `10` |
+| `subscription.messageCount` | integer | Số câu hỏi sinh viên đã gửi thành công trong cửa sổ 5 giờ hiện tại. | `3` |
 | `subscription.lastReset` | string | Thời gian reset hạn ngạch tin nhắn gần nhất. | `"2026-05-27T16:38:00.000Z"` |
 
 ---
@@ -65,9 +65,9 @@ curl -X GET http://localhost:8000/api/subscriptions/me \
 `POST /api/subscriptions/upgrade`
 
 #### Mô tả
-Tạo link thanh toán để nâng cấp gói dịch vụ tăng hạn mức hỏi đáp hàng ngày:
-- **Gói SILVER:** Chi phí 10.000 VNĐ, tăng hạn mức lên **50** câu hỏi/ngày.
-- **Gói GOLD:** Chi phí 20.000 VNĐ, tăng hạn mức lên **200** câu hỏi/ngày.
+Tạo link thanh toán để nâng cấp gói dịch vụ tăng hạn mức hỏi đáp theo cửa sổ 5 giờ:
+- **Gói SILVER:** Chi phí 10.000 VNĐ, tăng hạn mức lên **50** câu hỏi/5 giờ.
+- **Gói GOLD:** Chi phí 20.000 VNĐ, tăng hạn mức lên **200** câu hỏi/5 giờ.
 
 **Quy trình xử lý (Workflow):**
 1. Server khởi tạo bản ghi `Transaction` trạng thái `PENDING` kèm mã số đơn hàng `payosOrderId` duy nhất.

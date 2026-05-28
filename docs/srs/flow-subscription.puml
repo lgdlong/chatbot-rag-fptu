@@ -3,19 +3,31 @@ title Sơ đồ quy trình đăng ký gói dịch vụ (Subscription Flow)
 
 |Học sinh (Student)|
 start
-:Truy cập trang Gói dịch vụ (Subscription);
-:Xem thông tin và quyền lợi các gói cước (Bạc, Vàng);
-:Chọn gói và xác nhận đăng ký/thanh toán;
+:Truy cập trang gói dịch vụ;
+:Xem gói Cơ bản / Bạc / Vàng;
+:Chọn gói muốn nâng cấp;
+:Xác nhận nâng gói;
 
 |Hệ thống Subscription|
-:Khởi tạo giao dịch và chuyển hướng thanh toán;
-
-|System Handler|
-:Xác thực giao dịch thanh toán qua Webhook/API;
-:Cập nhật gói dịch vụ và giới hạn tài khoản (Database);
-
-|Học sinh (Student)|
-:Sử dụng hệ thống với giới hạn quyền lợi mới;
+:Kiểm tra đăng nhập;
+:Tạo transaction nâng cấp;
+if (Đang chạy chế độ test/demo?) then (Có)
+  :Đánh dấu giao dịch đã thanh toán ngay;
+  :Nâng gói và reset quota tức thời;
+  |Học sinh (Student)|
+  :Nhận thông báo nâng gói thành công;
+else (Không)
+  :Sinh mã tham chiếu SePay và trang checkout QR;
+  |Học sinh (Student)|
+  :Chuyển khoản theo thông tin checkout;
+  |System Handler|
+  :Nhận webhook SePay hợp lệ;
+  :Đối chiếu mã tham chiếu và số tiền;
+  :Cập nhật transaction sang PAID;
+  :Nâng gói và reset quota;
+  |Học sinh (Student)|
+  :Sử dụng hệ thống với hạn mức mới;
+endif
 
 stop
 @enduml

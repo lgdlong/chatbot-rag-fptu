@@ -4,32 +4,35 @@ title Sơ đồ quy trình đăng ký tài khoản Giảng viên (Lecturer Regis
 |Giảng viên (Lecturer)|
 start
 :Truy cập trang yêu cầu tài khoản;
-:Nhập thông tin (Email, Họ tên, Đơn vị);
+:Nhập họ tên, email và lý do đăng ký;
 :Gửi yêu cầu cấp tài khoản;
 
 |System Handler|
-:Nhận yêu cầu và xác thực định dạng;
-:Lưu yêu cầu vào CSDL với trạng thái "Chờ duyệt";
-:Thông báo cho Admin;
+:Kiểm tra dữ liệu bắt buộc;
+:Kiểm tra email chưa tồn tại trong hệ thống;
+:Lưu yêu cầu với trạng thái PENDING;
 
 |Quản trị viên (Admin)|
-:Xem danh sách yêu cầu chờ duyệt;
-:Đánh giá thông tin giảng viên;
+:Mở danh sách yêu cầu giảng viên;
+:Xem chi tiết yêu cầu chờ duyệt;
 if (Phê duyệt yêu cầu?) then (Đồng ý)
-  :Chọn Phê duyệt và cấp quyền;
+  :Chọn phê duyệt;
   |System Handler|
-  :Tạo tài khoản Giảng viên trong CSDL;
-  :Gửi email thông báo tài khoản & mật khẩu;
-  |Giảng viên (Lecturer)|
-  :Nhận email và đăng nhập hệ thống;
-else (Từ chối)
+  :Tạo user role LECTURER;
+  :Sinh mật khẩu tạm;
+  :Tạo account đăng nhập;
+  :Cập nhật yêu cầu thành APPROVED;
   |Quản trị viên (Admin)|
-  :Nhập lý do từ chối và gửi;
-  |System Handler|
-  :Cập nhật trạng thái yêu cầu thành "Từ chối";
-  :Gửi email thông báo từ chối kèm lý do;
+  :Nhận thông tin tài khoản tạm để bàn giao;
   |Giảng viên (Lecturer)|
-  :Nhận email thông báo bị từ chối;
+  :Nhận thông tin tài khoản từ Admin;
+  :Đăng nhập hệ thống;
+else (Từ chối)
+  :Chọn từ chối;
+  |System Handler|
+  :Cập nhật yêu cầu thành REJECTED;
+  |Giảng viên (Lecturer)|
+  :Nhận trạng thái bị từ chối;
 endif
 
 stop

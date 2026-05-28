@@ -3,11 +3,19 @@ title Sơ đồ quy trình quản lý phiên chat (Session Management Flow)
 
 |Học sinh (Student)|
 start
-:Yêu cầu danh sách phiên chat cũ;
+:Yêu cầu danh sách phiên chat;
 
 |System Handler|
-:Truy vấn CSDL lấy danh sách session theo User ID;
-:Trả về danh sách session kèm tiêu đề;
+:Truy vấn các session theo user hiện tại;
+:Trả về danh sách session,\ntiêu đề và phạm vi chat;
+
+|Học sinh (Student)|
+:Chọn một phiên chat để xem lại;
+
+|System Handler|
+:Tải chi tiết session và lịch sử tin nhắn;
+:Đánh dấu citation thuộc tài liệu đã bị xóa nếu có;
+:Trả về nội dung và scope label;
 
 |Học sinh (Student)|
 :Xem lịch sử phiên chat trên giao diện;
@@ -15,19 +23,19 @@ if (Thao tác mong muốn?) then (Đổi tên phiên chat)
   :Nhập tên mới cho phiên chat;
   :Xác nhận đổi tên;
   |System Handler|
+  :Kiểm tra quyền sở hữu session;
   :Cập nhật tiêu đề phiên chat trong CSDL;
-  :Trả về trạng thái thành công;
   |Học sinh (Student)|
-  :Xem tiêu đề mới hiển thị trên danh sách;
+  :Xem tiêu đề mới trên danh sách;
 else (Xóa phiên chat)
-  |Học sinh (Student)|
   :Yêu cầu xóa phiên chat;
   :Xác nhận cảnh báo xóa;
   |System Handler|
-  :Xóa phiên chat cùng toàn bộ tin nhắn liên quan;
-  :Cập nhật lại danh sách session;
+  :Kiểm tra quyền sở hữu session;
+  :Xóa session và toàn bộ tin nhắn liên quan;
+  :Trả danh sách đã cập nhật;
   |Học sinh (Student)|
-  :Xem danh sách phiên chat đã được cập nhật;
+  :Xem danh sách phiên chat sau khi xóa;
 endif
 
 stop

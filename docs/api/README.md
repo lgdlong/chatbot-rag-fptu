@@ -46,7 +46,7 @@ Hệ thống API Backend của **FPTU Chatbot RAG** được xây dựng trên n
 
 ### 💳 [Module 5: Gói Dịch Vụ & Thanh Toán (PayOS)](file:///e:/FPT/Semester_7/SWD392/chatbot-rag-fptu/docs/api/00_subscriptions.md)
 *Xem hạn ngạch hằng ngày, nâng cấp tài khoản qua cổng trực tuyến PayOS và xác thực chữ ký.*
-- `GET /api/subscriptions/me` — Kiểm tra thông tin gói dịch vụ & lượng tin nhắn trong ngày.
+- `GET /api/subscriptions/me` — Kiểm tra thông tin gói dịch vụ & lượng tin nhắn trong cửa sổ 5 giờ hiện tại.
 - `POST /api/subscriptions/upgrade` — Tạo link nâng cấp gói dịch vụ (SILVER/GOLD) qua PayOS.
 - `POST /api/subscriptions/webhook` — PayOS webhook tự động xác nhận kết quả thanh toán.
 

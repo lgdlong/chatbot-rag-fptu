@@ -3,31 +3,39 @@ title Session Management Flow Diagram
 
 |Student|
 start
-:Request list of past chat sessions;
+:Request chat session list;
 
 |System Handler|
-:Query Database for sessions matching User ID;
-:Return session list with titles;
+:Query sessions for current user;
+:Return session list,\ntitles, and chat scope summary;
 
 |Student|
-:View session history list on UI;
+:Open one session for review;
+
+|System Handler|
+:Load session details and message history;
+:Mark citations from deleted documents when needed;
+:Return messages and scope label;
+
+|Student|
+:Review session history on UI;
 if (Desired action?) then (Rename session)
-  :Enter new name for the session;
+  :Enter new session title;
   :Confirm rename request;
   |System Handler|
+  :Verify session ownership;
   :Update session title in Database;
-  :Return success status;
   |Student|
-  :View updated title on the sidebar;
+  :See updated title in session list;
 else (Delete session)
-  |Student|
-  :Click delete session icon;
-  :Confirm deletion warning prompt;
+  :Request session deletion;
+  :Confirm delete warning;
   |System Handler|
-  :Delete session and all related chat messages;
-  :Update session list in Database;
+  :Verify session ownership;
+  :Delete session and related messages;
+  :Return refreshed list;
   |Student|
-  :View updated sidebar without the deleted session;
+  :See session list after deletion;
 endif
 
 stop

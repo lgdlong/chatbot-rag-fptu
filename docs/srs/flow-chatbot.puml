@@ -3,26 +3,46 @@ title Sơ đồ quy trình trò chuyện (Chatbot Flow)
 
 |Học sinh (Student)|
 start
-:Bắt đầu phiên chat mới;
-:Gửi câu hỏi môn học;
+:Mở trang chat;
+if (Đã có phiên phù hợp?) then (Chưa)
+  :Chọn phạm vi chat\n(Tất cả môn / Môn đã chọn / Tài liệu đã chọn);
+  :Tạo phiên chat mới;
+else (Rồi)
+  :Chọn phiên chat có sẵn;
+endif
+:Nhập và gửi câu hỏi;
 
 |Hệ thống Chatbot|
-:Nhận câu hỏi và gửi yêu cầu xử lý;
+:Gửi yêu cầu chat kèm sessionId;
 
 |System Handler|
-:Kiểm tra giới hạn & gói Subscription;
-if (Còn giới hạn Lượt/Session?) then (Có)
-  :Tìm kiếm ngữ cảnh RAG trong tài liệu;
-  :Tạo câu trả lời dựa trên tài liệu qua LLM;
+:Xác thực người dùng và quyền truy cập phiên chat;
+:Kiểm tra quota gói hiện tại\n(số tin nhắn trong cửa sổ 5 giờ);
+if (Còn quota?) then (Có)
+  :Lưu tin nhắn người dùng vào lịch sử;
+  if (Đây là tin nhắn đầu tiên?) then (Có)
+    :Tự động sinh tiêu đề phiên chat;
+  endif
+  :Xác định phạm vi tài liệu áp dụng cho phiên chat;
+  :Phân loại ý định câu hỏi\n(RAG hỏi đáp hay hỏi metadata tài liệu);
+  if (Cần truy vấn RAG?) then (Có)
+    :Tìm ngữ cảnh trong tài liệu theo phạm vi đã chọn;
+    :Sinh câu trả lời và citations;
+  else (Không)
+    :Sinh câu trả lời metadata\n(ví dụ tài liệu nào đang có);
+  endif
+  :Stream câu trả lời qua SSE;
+  :Lưu phản hồi trợ lý và tăng bộ đếm quota;
   |Hệ thống Chatbot|
-  :Định dạng câu trả lời và trích dẫn;
+  :Hiển thị nội dung trả lời theo thời gian thực;
+  :Hiển thị citations,\nđánh dấu nguồn đã bị xóa nếu có;
   |Học sinh (Student)|
-  :Xem câu trả lời và trích dẫn;
+  :Đọc câu trả lời và nguồn trích dẫn;
 else (Không)
-  |System Handler|
-  :Trả về lỗi vượt quá giới hạn;
+  :Tạo phản hồi hết quota;
+  :Stream thông báo hết quota qua SSE;
   |Hệ thống Chatbot|
-  :Hiển thị thông báo giới hạn;
+  :Hiển thị thông báo chờ reset quota\nhoặc nâng cấp gói;
   |Học sinh (Student)|
   :Nhận thông báo vượt giới hạn sử dụng;
 endif

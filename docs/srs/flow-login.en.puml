@@ -3,36 +3,35 @@ title Authentication & Login Flow Diagram
 
 |User|
 start
-:Access Login page;
-if (Login Method?) then (Email/Password)
-  :Enter Email and Password;
+:Open login page;
+if (Login method?) then (Email/Password)
+  :Enter email and password;
   :Submit credentials;
   |System Handler|
-  :Hash and verify credentials in Database;
+  :Validate credentials through Better Auth;
   if (Credentials valid?) then (Yes)
-    :Generate JWT Session and Auth Cookie;
+    :Create authenticated session cookie;
     |User|
-    :Log in successfully and redirect to dashboard;
+    :Sign in successfully;
+    :Redirect by role\n(Student / Lecturer / Admin);
   else (No)
     |System Handler|
-    :Return login failure error;
+    :Return sign-in error;
     |User|
-    :Display error and prompt retry;
+    :Review error and retry;
   endif
 else (Google SSO)
-  |User|
   :Click "Login with Google";
-  :Authenticate account via Google Prompt;
   |System Handler|
-  :Receive Google Token and verify with Google API;
-  :Check if user exists in Database;
-  if (User exists?) then (No)
-    :Auto-register new Student account;
-  else (Yes)
+  :Redirect to Google OAuth;
+  :Receive authentication result from Google;
+  if (User does not exist yet?) then (Yes)
+    :Auto-create account through Better Auth flow;
   endif
-  :Generate JWT Session and Auth Cookie;
+  :Create authenticated session cookie;
   |User|
-  :Log in successfully and redirect to dashboard;
+  :Sign in successfully;
+  :Redirect by role;
 endif
 
 stop

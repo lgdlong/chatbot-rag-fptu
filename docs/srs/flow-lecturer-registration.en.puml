@@ -3,33 +3,36 @@ title Lecturer Registration & Approval Flow Diagram
 
 |Lecturer|
 start
-:Access account request page;
-:Enter details (Email, Full Name, Department);
-:Submit account request;
+:Open lecturer request page;
+:Enter full name, email, and request reason;
+:Submit lecturer account request;
 
 |System Handler|
-:Receive request and validate format;
-:Save request in Database with "Pending" status;
-:Notify Admin of new request;
+:Validate required fields;
+:Ensure email is not already registered;
+:Store request with PENDING status;
 
 |Admin|
-:View pending request list;
-:Review lecturer details;
+:Open lecturer request list;
+:Review pending request details;
 if (Approve request?) then (Yes)
-  :Select Approve and grant role;
+  :Approve request;
   |System Handler|
-  :Create Lecturer account in Database;
-  :Send success email with credentials;
-  |Lecturer|
-  :Receive email and log in to system;
-else (No)
+  :Create user with LECTURER role;
+  :Generate temporary password;
+  :Create login account;
+  :Update request to APPROVED;
   |Admin|
-  :Enter rejection reason and submit;
-  |System Handler|
-  :Update request status to "Rejected" in Database;
-  :Send rejection email with reason;
+  :Receive temporary account credentials for handoff;
   |Lecturer|
-  :Receive rejection email;
+  :Receive account credentials from Admin;
+  :Log in to the system;
+else (No)
+  :Reject request;
+  |System Handler|
+  :Update request to REJECTED;
+  |Lecturer|
+  :Receive rejected status;
 endif
 
 stop

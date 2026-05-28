@@ -3,28 +3,48 @@ title Chatbot Flow Diagram
 
 |Student|
 start
-:Start new chat session;
-:Send subject question;
+:Open chat page;
+if (Relevant session exists?) then (No)
+  :Choose chat scope\n(All courses / Selected courses / Selected documents);
+  :Create new chat session;
+else (Yes)
+  :Open existing chat session;
+endif
+:Enter and send question;
 
 |Chatbot System|
-:Receive question and request processing;
+:Send chat request with sessionId;
 
 |System Handler|
-:Check Subscription plan & usage limit;
-if (Usage limit available?) then (Yes)
-  :Search RAG context in documents;
-  :Generate response based on documents via LLM;
+:Authenticate user and verify session access;
+:Check current plan quota\n(message count within 5-hour window);
+if (Quota available?) then (Yes)
+  :Persist user message into history;
+  if (Is this the first message?) then (Yes)
+    :Auto-generate session title;
+  endif
+  :Resolve document scope for the session;
+  :Route intent\n(RAG QA or document metadata request);
+  if (RAG retrieval required?) then (Yes)
+    :Search document context within selected scope;
+    :Generate answer and citations;
+  else (No)
+    :Generate metadata response\n(for example available documents);
+  endif
+  :Stream answer via SSE;
+  :Persist assistant reply and increment quota counter;
   |Chatbot System|
-  :Format response and citations;
+  :Render streaming answer in real time;
+  :Render citations and mark deleted sources when needed;
   |Student|
-  :View response and citations;
+  :Read answer and citations;
 else (No)
-  |System Handler|
-  :Return usage limit error;
+  :Build quota exceeded response;
+  :Stream quota notification via SSE;
   |Chatbot System|
-  :Display limit notification;
+  :Show wait-for-reset or upgrade-plan notice;
   |Student|
-  :Receive usage limit exceeded notification;
+  :Receive usage limit notification;
 endif
 
 stop
