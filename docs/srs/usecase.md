@@ -36,7 +36,7 @@
     *   **Tác nhân**: Student
     *   **Quan hệ**: 
         *   `<<extend>>` **[UC-05.1] Nâng cấp Gói dịch vụ (Upgrade Subscription)**
-            *   `<<include>>` **[UC-05.2] Thanh toán qua PayOS (Pay via PayOS)**
+        *   `<<include>>` **[UC-05.2] Thanh toán qua SePay (Pay via SePay)**
 
 #### 2.3. Nhóm Use Case của Giảng viên (Lecturer Use Cases)
 *   **[UC-06] Yêu cầu cấp tài khoản Lecturer (Request Lecturer Account)**

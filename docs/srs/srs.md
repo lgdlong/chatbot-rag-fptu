@@ -21,7 +21,7 @@ Phạm vi của hệ thống được giới hạn ở quy mô nhỏ, quản lý
 | **Chunking** | Phân đoạn tài liệu: Chia slide, file PDF thành các đoạn text nhỏ tối ưu cho AI đọc hiểu. |
 | **Citations** | Trích dẫn nguồn gốc: Chỉ rõ câu trả lời được trích từ Slide số mấy, trang nào hoặc giây thứ mấy trong video của giảng viên. |
 | **SSO (Single Sign-On)** | Đăng nhập một lần: Ở đây hỗ trợ đăng nhập nhanh bằng tài khoản Google dành cho học sinh. |
-| **PayOS** | Cổng thanh toán trực tuyến của Việt Nam hỗ trợ giao dịch QR Code động chuyển khoản ngân hàng. |
+| **SePay** | Cổng thanh toán trực tuyến của Việt Nam hỗ trợ giao dịch QR Code động chuyển khoản ngân hàng. |
 | **Flat Storage** | Kho lưu trữ phẳng: Toàn bộ tài liệu tải lên được gom chung vào một kho tổng thay vì chia thư mục phức tạp. |
 
 #### 1.4. Bối cảnh hệ thống & Kiến trúc công nghệ (System Perspective & Tech Stack)
@@ -72,7 +72,7 @@ Hệ thống phân quyền nghiêm ngặt thành 3 nhóm người dùng chính, 
 - **Xem và xóa**: Có khả năng liệt kê các tài liệu đã có trong kho và cho phép giảng viên xóa khi nội dung đã lỗi thời.
 
 #### 3.4. Nhóm chức năng Subscription - Gói dịch vụ (Dành cho Student)
-Hệ thống giới hạn số lượng tin nhắn của học sinh thông qua các gói đăng ký được **tính theo chu kỳ từng tháng**. Việc thanh toán được xử lý qua cổng **PayOS**.
+Hệ thống giới hạn số lượng tin nhắn của học sinh thông qua các gói đăng ký được **tính theo chu kỳ từng tháng**. Việc thanh toán được xử lý qua cổng **SePay**.
 - **Gói Cơ bản (Basic - Mặc định)**: Cấp miễn phí khi tạo tài khoản. Giới hạn: **10 câu hỏi/ngày**.
 - **Gói Bạc (Silver)**: Trả phí gia hạn hàng tháng (Giá: **10.000 VNĐ**). Giới hạn: **50 câu hỏi/ngày**.
 - **Gói Vàng (Gold)**: Trả phí gia hạn hàng tháng (Giá: **20.000 VNĐ**). Giới hạn: **200 câu hỏi/ngày**.
