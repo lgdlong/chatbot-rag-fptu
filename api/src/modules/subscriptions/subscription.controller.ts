@@ -88,16 +88,13 @@ subscriptionRouter.post("/upgrade", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  if (!ENV.SEPAY_API_KEY || !ENV.SEPAY_BANK_CODE || !ENV.SEPAY_ACCOUNT_NO) {
-    return c.json({ error: "SePay is not configured" }, 500);
-  }
-
   const body = (await c.req.json()) as UpgradeRequestBody;
   if (body.tier !== "SILVER" && body.tier !== "GOLD") {
     return c.json({ error: "Invalid tier. Choose SILVER or GOLD" }, 400);
   }
 
   const { amount } = resolveSubscriptionLimits(body.tier);
+  const demoAmountLabel = amount.toLocaleString("vi-VN");
 
   try {
     const transaction = await prisma.transaction.create({
@@ -108,26 +105,23 @@ subscriptionRouter.post("/upgrade", async (c) => {
       },
     });
 
-    const referenceCode = buildSePayReference(body.tier, transaction.id);
+    const referenceCode = `DEMO-UPGRADE-${body.tier}-${transaction.id.replace(/-/g, "").slice(0, 10).toUpperCase()}`;
     await prisma.transaction.update({
       where: { id: transaction.id },
       data: { sepayReference: referenceCode },
     });
 
-    const checkoutUrl = new URL(
-      `/api/subscriptions/checkout/${transaction.id}`,
-      ENV.INTERNAL_API_URL,
-    ).toString();
+    await applyPaidTransaction(transaction.id);
+    const subscription = await getOrInitializeSubscription(session.user.id);
 
     return c.json({
       success: true,
-      checkoutUrl,
+      demoMode: true,
       transactionId: transaction.id,
-      orderCode: referenceCode,
       referenceCode,
-      amount,
-      bankCode: ENV.SEPAY_BANK_CODE,
-      accountNo: ENV.SEPAY_ACCOUNT_NO,
+      auditContent: `DEMO PAYMENT | NÂNG GÓI ${body.tier} | ${demoAmountLabel} VND | NO REAL TRANSFER`,
+      message: `Đã nâng gói ${body.tier === "SILVER" ? "Bạc" : "Vàng"} trong chế độ test.`,
+      subscription,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to initiate payment";

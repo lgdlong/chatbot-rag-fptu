@@ -1,6 +1,10 @@
 import { prisma } from "../auth/services/db.service.js";
 import type { SePayTier } from "./sepay.service.js";
 
+export const SUBSCRIPTION_RESET_WINDOW_HOURS = 5;
+export const SUBSCRIPTION_RESET_WINDOW_MS =
+  SUBSCRIPTION_RESET_WINDOW_HOURS * 60 * 60 * 1000;
+
 export function resolveSubscriptionTier(amount: number): SePayTier {
   return amount === 10000 ? "SILVER" : "GOLD";
 }
@@ -44,11 +48,7 @@ export async function getOrInitializeSubscription(userId: string) {
   }
 
   const lastResetDate = new Date(sub.lastReset);
-  if (
-    now.getDate() !== lastResetDate.getDate() ||
-    now.getMonth() !== lastResetDate.getMonth() ||
-    now.getFullYear() !== lastResetDate.getFullYear()
-  ) {
+  if (now.getTime() - lastResetDate.getTime() >= SUBSCRIPTION_RESET_WINDOW_MS) {
     sub = await prisma.subscription.update({
       where: { id: sub.id },
       data: { messageCount: 0, lastReset: now },
