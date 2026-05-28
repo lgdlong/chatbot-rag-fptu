@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell, Group, Title, Button } from '@mantine/core';
-import { LogOut, ShieldAlert } from 'lucide-react';
+import { IconLogout, IconShield } from '@tabler/icons-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
@@ -19,17 +19,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <AppShell.Header bg="zinc.900" style={{ borderBottom: '1px solid #27272a' }}>
                 <Group h="100%" px="xl" justify="space-between">
                     <Group gap="xs">
-                        <ShieldAlert className="w-5 h-5 text-emerald-400" />
-                        <Title order={4} c="zinc.100" className="text-sm font-bold uppercase tracking-wider text-zinc-100">
+                        <IconShield size={20} color="var(--mantine-color-teal-5)" />
+                        <Title order={4} c="zinc.100" style={{ fontSize: 'var(--mantine-font-size-sm)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Hệ thống Quản trị - Admin Portal
                         </Title>
                     </Group>
                     <Button
-                        variant="subtle"
+                        variant="light"
                         color="red"
                         radius="xs"
                         size="xs"
-                        leftSection={<LogOut className="w-3.5 h-3.5" />}
+                        leftSection={<IconLogout size={14} />}
                         onClick={handleLogout}
                     >
                         Đăng xuất Admin

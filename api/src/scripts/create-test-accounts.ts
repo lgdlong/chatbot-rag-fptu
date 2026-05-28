@@ -1,4 +1,5 @@
 import "../config/env.js";
+import { ENV } from "../config/env.js";
 import { auth } from "../modules/auth/auth.js";
 import { prisma } from "../modules/auth/services/db.service.js";
 import { writeFile } from "node:fs/promises";
@@ -51,6 +52,12 @@ async function main() {
     if (existing) {
       console.log(`User ${acc.email} already exists. Deleting to ensure clean registration...`);
       try {
+        await prisma.session.deleteMany({
+          where: { userId: existing.id },
+        });
+        await prisma.account.deleteMany({
+          where: { userId: existing.id },
+        });
         await prisma.user.delete({
           where: { email: acc.email },
         });
@@ -86,18 +93,25 @@ async function main() {
 
     // Call API to Sign In to verify the credentials actually work
     console.log(`Verifying login via signInEmail API...`);
-    const signinRes = await auth.api.signInEmail({
-      body: {
+    const signInReq = new Request(`${ENV.BETTER_AUTH_URL}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
         email: acc.email,
         password: acc.password,
-      },
+      }),
     });
+    const signinRes = await auth.handler(signInReq);
+    const signinBody = await signinRes.text();
 
-    if (!signinRes) {
-      throw new Error(`Failed to sign in ${acc.email}: signin API returned empty response`);
+    if (signinRes.status !== 200) {
+      throw new Error(`Failed to sign in ${acc.email}: ${signinBody}`);
     }
 
-    console.log(`✅ Login verification successful! User ID in session: ${signinRes.user.id}`);
+    const parsedSigninBody = JSON.parse(signinBody) as { user?: { id?: string } };
+    console.log(`✅ Login verification successful! User ID in session: ${parsedSigninBody.user?.id || "unknown"}`);
 
     results.push({
       name: acc.name,

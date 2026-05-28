@@ -1,74 +1,104 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, Center, Divider, Paper, PasswordInput, Text, TextInput, Title, Alert, Select, Stack, Collapse } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { Button, Center, Divider, Paper, PasswordInput, Text, TextInput, Title, Alert, Stack, Collapse } from '@mantine/core';
 import { IconBrandGoogle, IconAlertCircle, IconCode } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
+import { notifications } from '@mantine/notifications';
 import { api } from '@/lib/api';
+import type { DevLoginAccount } from '@/constants';
 import { useRouter } from 'next/navigation';
+import { useForm } from '@tanstack/react-form';
 
 export default function LoginPage() {
     const router = useRouter();
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    
-    // Quick Dev Bypass
+    const [devLoginAccounts, setDevLoginAccounts] = useState<DevLoginAccount[]>([]);
+    const [devLoginLoadError, setDevLoginLoadError] = useState<string | null>(null);
+
     const [opened, { toggle }] = useDisclosure(false);
-    const [selectedRole, setSelectedRole] = useState<string | null>('student');
 
-    const handleEmailLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setLoading(true);
-        setError(null);
-        
-        try {
-            const res = await api.login(email, password);
-            if (res.user) {
-                // Chuyển hướng người dùng dựa theo vai trò (role) của họ
-                const userRole = res.user.role?.toLowerCase() || 'student';
-                if (userRole === 'lecturer') {
-                    router.push('/lecturer/courses');
-                } else if (userRole === 'admin') {
-                    router.push('/admin/dashboard');
-                } else {
-                    router.push('/student/chat');
-                }
-            } else {
-                setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin.");
-            }
-        } catch (err: any) {
-            console.error("Login error:", err);
-            setError(err.message || "Không thể kết nối đến máy chủ API.");
-        } finally {
-            setLoading(false);
+    const redirectByRole = (role?: string | null) => {
+        const normalizedRole = role?.toLowerCase() || 'student';
+        if (normalizedRole === 'lecturer') {
+            router.push('/lecturer/courses');
+        } else if (normalizedRole === 'admin') {
+            router.push('/admin/dashboard');
+        } else {
+            router.push('/student/chat');
         }
     };
 
-    const handleDevBypassLogin = async () => {
-        setLoading(true);
-        setError(null);
-        try {
-            const role = (selectedRole as 'student' | 'lecturer' | 'admin') || 'student';
-            const res = await api.devLogin(role);
-            if (res.success) {
-                if (role === 'lecturer') {
-                    router.push('/lecturer/courses');
-                } else if (role === 'admin') {
-                    router.push('/admin/dashboard');
+    // TanStack Form cho Email/Password Login
+    const form = useForm({
+        defaultValues: {
+            email: '',
+            password: '',
+        },
+        onSubmit: async ({ value }) => {
+            setLoading(true);
+            setError(null);
+            
+            try {
+                const res = await api.login(value.email, value.password);
+                if (res.user) {
+                    redirectByRole(res.user.role);
                 } else {
-                    router.push('/student/chat');
+                    setError("Đăng nhập thất bại. Vui lòng kiểm tra thông tin.");
                 }
-            } else {
-                setError("Dev login failed.");
+            } catch (err: unknown) {
+                console.error("Login error:", err);
+                const message = err instanceof Error ? err.message : "";
+                if (message.toLowerCase().includes("invalid email or password") || message.toLowerCase().includes("invalid")) {
+                    setError("Email hoặc mật khẩu không chính xác. Vui lòng thử lại.");
+                } else {
+                    setError(message || "Không thể kết nối đến máy chủ API.");
+                }
+            } finally {
+                setLoading(false);
             }
-        } catch (err: any) {
-            setError(err.message || "Lỗi bypass đăng nhập.");
-        } finally {
-            setLoading(false);
-        }
+        },
+    });
+
+    const handleDevBypassLogin = (profile: DevLoginAccount) => {
+        form.setFieldValue('email', profile.email);
+        form.setFieldValue('password', profile.password);
+        queueMicrotask(() => form.handleSubmit());
     };
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadDevLoginAccounts = async () => {
+            try {
+                const response = await fetch('/api/dev-login-accounts', { cache: 'no-store' });
+                const payload = await response.json() as { accounts?: DevLoginAccount[]; error?: string };
+
+                if (!response.ok) {
+                    throw new Error(payload.error || 'Không thể tải danh sách đăng nhập nhanh.');
+                }
+
+                if (!cancelled) {
+                    setDevLoginAccounts(payload.accounts || []);
+                    setDevLoginLoadError(null);
+                }
+            } catch (err: unknown) {
+                if (!cancelled) {
+                    setDevLoginAccounts([]);
+                    setDevLoginLoadError(err instanceof Error ? err.message : 'Không thể tải danh sách đăng nhập nhanh.');
+                }
+            }
+        };
+
+        if (opened) {
+            void loadDevLoginAccounts();
+        }
+
+        return () => {
+            cancelled = true;
+        };
+    }, [opened]);
 
     return (
         <Center style={{ flex: 1, minHeight: '100vh' }}>
@@ -89,14 +119,16 @@ export default function LoginPage() {
                 <Button
                     fullWidth
                     leftSection={<IconBrandGoogle size="1.2rem" />}
-                    variant="default"
-                    radius="xs"
+                    variant="light"
                     color="gray"
+                    radius="xs"
                     mb="lg"
                     onClick={() => {
-                        // Demo OAuth chuyển trang hoặc báo thông báo
-                        alert("Đăng nhập bằng Google đang chuyển hướng qua Google OAuth của Better Auth...");
-                        window.location.href = "http://localhost:8000/api/auth/login/google";
+                        notifications.show({
+                            color: 'yellow',
+                            title: 'Tính năng đang phát triển',
+                            message: 'Đăng nhập với Google sẽ được cập nhật trong phiên bản tới.',
+                        });
                     }}
                 >
                     Đăng nhập với Google
@@ -104,37 +136,86 @@ export default function LoginPage() {
 
                 <Divider label="Hoặc đăng nhập bằng Email" labelPosition="center" my="lg" />
 
-                <form onSubmit={handleEmailLogin}>
-                    <TextInput
-                        label="Email"
-                        placeholder="student@fpt.edu.vn"
-                        required
-                        radius="xs"
-                        mb="md"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        disabled={loading}
-                    />
-                    <PasswordInput
-                        label="Mật khẩu"
-                        placeholder="Nhập mật khẩu của bạn"
-                        required
-                        radius="xs"
-                        mb="xl"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        disabled={loading}
-                    />
+                <form 
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        form.handleSubmit();
+                    }}
+                >
+                    <form.Field
+                        name="email"
+                        validators={{
+                            onChange: ({ value }) => {
+                                if (!value) return 'Email là bắt buộc';
+                                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Email không hợp lệ';
+                                return undefined;
+                            },
+                        }}
+                    >
+                        {(field) => (
+                            <TextInput
+                                label="Email"
+                                placeholder="student@fpt.edu.vn"
+                                required
+                                radius="xs"
+                                mb="md"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                                onBlur={field.handleBlur}
+                                error={field.state.meta.isTouched && field.state.meta.errors.length ? field.state.meta.errors.join(', ') : null}
+                                disabled={loading}
+                            />
+                        )}
+                    </form.Field>
 
-                    <Button fullWidth radius="xs" color="brandBlue" type="submit" loading={loading}>
-                        Đăng nhập
-                    </Button>
+                    <form.Field
+                        name="password"
+                        validators={{
+                            onChange: ({ value }) => {
+                                if (!value) return 'Mật khẩu là bắt buộc';
+                                if (value.length < 6) return 'Mật khẩu phải từ 6 ký tự trở lên';
+                                return undefined;
+                            },
+                        }}
+                    >
+                        {(field) => (
+                            <PasswordInput
+                                label="Mật khẩu"
+                                placeholder="Nhập mật khẩu của bạn"
+                                required
+                                radius="xs"
+                                mb="xl"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.value)}
+                                onBlur={field.handleBlur}
+                                error={field.state.meta.isTouched && field.state.meta.errors.length ? field.state.meta.errors.join(', ') : null}
+                                disabled={loading}
+                            />
+                        )}
+                    </form.Field>
+
+                    <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+                        {([canSubmit, isSubmitting]) => (
+                            <Button 
+                                fullWidth 
+                                radius="xs" 
+                                color="deepBlue"
+                                variant="filled"
+                                type="submit" 
+                                loading={loading || isSubmitting}
+                                disabled={!canSubmit}
+                            >
+                                Đăng nhập
+                            </Button>
+                        )}
+                    </form.Subscribe>
                 </form>
 
                 {/* Phần hỗ trợ Dev Bypass nhanh trong quá trình phát triển */}
                 <Stack mt="xl" gap="xs">
                     <Button 
-                        variant="subtle" 
+                        variant="light" 
                         color="gray" 
                         size="xs" 
                         leftSection={<IconCode size="0.9rem" />} 
@@ -147,32 +228,42 @@ export default function LoginPage() {
                     <Collapse expanded={opened}>
                         <Paper withBorder p="md" bg="zinc.950" radius="xs" className="border-zinc-800">
                             <Text size="xs" c="dimmed" mb="md" ta="center">
-                                Tự động tạo và đính kèm Session Cookie của Better Auth chuẩn trên cổng 8000.
+                                Dùng đúng tài khoản đã ghi trong `credentials.json` để đăng nhập nhanh.
                             </Text>
-                            <Select
-                                label="Chọn vai trò thử nghiệm"
-                                placeholder="Chọn vai trò"
-                                data={[
-                                    { value: 'student', label: 'Sinh viên (STUDENT)' },
-                                    { value: 'lecturer', label: 'Giảng viên (LECTURER)' },
-                                    { value: 'admin', label: 'Quản trị viên (ADMIN)' }
-                                ]}
-                                value={selectedRole}
-                                onChange={setSelectedRole}
-                                mb="md"
-                                size="xs"
-                                radius="xs"
-                            />
-                            <Button 
-                                fullWidth 
-                                color="indigo" 
-                                size="xs" 
-                                radius="xs"
-                                onClick={handleDevBypassLogin}
-                                loading={loading}
-                            >
-                                Bypass & Đăng nhập ngay
-                            </Button>
+                            {devLoginLoadError && (
+                                <Alert icon={<IconAlertCircle size="1rem" />} color="red" radius="xs" mb="md">
+                                    {devLoginLoadError}
+                                </Alert>
+                            )}
+                            <Stack gap="xs">
+                                {devLoginAccounts.map((profile) => (
+                                    <Button
+                                        key={profile.email}
+                                        fullWidth
+                                        radius="xs"
+                                        size="xs"
+                                        variant="light"
+                                        color={String(profile.role).toLowerCase() === 'admin' ? 'red' : String(profile.role).toLowerCase() === 'lecturer' ? 'indigo' : 'teal'}
+                                        onClick={() => handleDevBypassLogin(profile)}
+                                        loading={loading}
+                                        style={{ justifyContent: 'flex-start', height: 'auto', paddingBlock: 10 }}
+                                    >
+                                        <Stack gap={0} align="flex-start">
+                                            <Text size="xs" fw={700} style={{ lineHeight: 1.2 }}>
+                                                {profile.name}
+                                            </Text>
+                                            <Text size="10px" c="dimmed" style={{ lineHeight: 1.2 }}>
+                                                {profile.email}
+                                            </Text>
+                                        </Stack>
+                                    </Button>
+                                ))}
+                                {devLoginAccounts.length === 0 && !devLoginLoadError && (
+                                    <Text size="xs" c="dimmed" ta="center" py="xs">
+                                        Đang tải danh sách tài khoản nhanh...
+                                    </Text>
+                                )}
+                            </Stack>
                         </Paper>
                     </Collapse>
                 </Stack>

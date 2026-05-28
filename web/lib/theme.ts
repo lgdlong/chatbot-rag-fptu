@@ -30,5 +30,5 @@ export const theme = createTheme({
     ],
   },
   defaultRadius: 'xs', // Sắc cạnh, border-radius cực nhỏ tạo cảm giác Premium
-  fontFamily: 'var(--font-geist-sans), Arial, Helvetica, sans-serif',
+  fontFamily: 'var(--font-roboto), Arial, Helvetica, sans-serif',
 });

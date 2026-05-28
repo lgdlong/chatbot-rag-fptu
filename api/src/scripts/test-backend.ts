@@ -170,7 +170,7 @@ async function runTests() {
     // ==========================================
     // 4. Kiểm thử Hạn mức Subscription
     // ==========================================
-    console.log("\n💳 [Test 4] Kiểm tra hạn mức gói Subscription...");
+    console.log("\n💳 [Test 4] Kiểm tra hạn mức gói Subscription theo cửa sổ 5 giờ...");
     
     // Khởi tạo gói mặc định cho student test
     const now = new Date();
@@ -181,7 +181,7 @@ async function runTests() {
         startDate: now,
         endDate: new Date(now.getFullYear() + 100, now.getMonth(), now.getDate()),
         maxMessages: 10,
-        messageCount: 9, // Đã gửi 9 tin nhắn
+        messageCount: 9, // Đã gửi 9 tin nhắn trong cửa sổ hiện tại
         lastReset: now
       }
     });
