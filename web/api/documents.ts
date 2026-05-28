@@ -18,7 +18,7 @@ export interface UploadDocumentResponse {
 export const documentsApi = {
     // 1. Lấy danh sách tài liệu môn học
     getDocuments: async (courseId: string): Promise<DocumentsResponse> => {
-        const response = await apiClient.get<DocumentsResponse>(`/api/chat/courses/${courseId}/documents`);
+        const response = await apiClient.get<DocumentsResponse>(`/api/courses/${courseId}/documents`);
         return response.data;
     },
 

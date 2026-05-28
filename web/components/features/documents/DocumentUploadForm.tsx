@@ -1,88 +1,121 @@
 'use client';
 
-import { useState } from 'react';
-import { Group, Text, Box, Button } from '@mantine/core';
-import { Dropzone, PDF_MIME_TYPE, MS_WORD_MIME_TYPE, MS_POWERPOINT_MIME_TYPE } from '@mantine/dropzone';
+import { useRef, useState } from 'react';
+import { Button, FileButton, Group, Paper, Stack, Text } from '@mantine/core';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { IconFileTypePdf, IconUpload, IconTrash } from '@tabler/icons-react';
 import { api } from '@/lib/api';
-import { Upload, FileText, X, Loader2 } from 'lucide-react';
 
 interface DocumentUploadFormProps {
     courseId: string;
+    courseName?: string;
 }
 
-export function DocumentUploadForm({ courseId }: DocumentUploadFormProps) {
+export function DocumentUploadForm({ courseId, courseName }: DocumentUploadFormProps) {
     const [file, setFile] = useState<File | null>(null);
+    const resetRef = useRef<() => void>(null);
     const queryClient = useQueryClient();
 
-    const uploadMutation = useMutation({
-        mutationFn: (f: File) => api.uploadDocument(courseId, f),
-        onSuccess: () => {
-            setFile(null); // Reset form sau khi upload thành công
-            // Yêu cầu React Query gọi lại API lấy danh sách tài liệu mới nhất
-            queryClient.invalidateQueries({ queryKey: ['documents', courseId] });
-        },
-        onError: (error: any) => {
-            alert(`Lỗi khi tải lên: ${error.message}`);
-        }
-    });
-
-    const handleUpload = () => {
-        if (file) uploadMutation.mutate(file);
+    const clearFile = () => {
+        setFile(null);
+        resetRef.current?.();
     };
 
+    const uploadMutation = useMutation({
+        mutationFn: (selectedFile: File) => api.uploadDocument(courseId, selectedFile),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['documents', courseId] });
+            queryClient.invalidateQueries({ queryKey: ['courses'] });
+            notifications.show({
+                color: 'teal',
+                title: 'Đã gửi tài liệu',
+                message: 'Tài liệu đã được đưa vào hàng đợi xử lý.',
+            });
+            clearFile();
+        },
+        onError: (error: Error) => {
+            notifications.show({
+                color: 'red',
+                title: 'Tải tài liệu thất bại',
+                message: error.message,
+            });
+        },
+    });
+
     return (
-        <Box className="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl p-6">
-            <Dropzone
-                onDrop={(files) => setFile(files[0])}
-                onReject={() => alert('File không hợp lệ hoặc vượt quá 50MB')}
-                maxSize={50 * 1024 ** 2} // 50MB theo chuẩn SRS [cite: 138]
-                accept={[...PDF_MIME_TYPE, ...MS_WORD_MIME_TYPE, ...MS_POWERPOINT_MIME_TYPE]}
-                maxFiles={1}
-                radius="md"
-                className="bg-zinc-950/50 border-2 border-dashed border-zinc-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-all"
-            >
-                <Group justify="center" gap="xl" mih={180} style={{ pointerEvents: 'none' }}>
-                    <Dropzone.Accept>
-                        <Upload className="w-12 h-12 text-indigo-500" />
-                    </Dropzone.Accept>
-                    <Dropzone.Reject>
-                        <X className="w-12 h-12 text-red-500" />
-                    </Dropzone.Reject>
-                    <Dropzone.Idle>
-                        <FileText className="w-12 h-12 text-zinc-500" />
-                    </Dropzone.Idle>
+        <Stack gap="sm">
+            <Paper withBorder radius="md" p="md" bg="var(--mantine-color-dark-8)">
+                <Stack gap="xs">
+                    <Group justify="space-between" align="flex-start">
+                        <div>
+                            <Text fw={700} c="gray.0">
+                                Tải tài liệu PDF
+                            </Text>
+                            <Text size="xs" c="dimmed" mt={4}>
+                                {courseName ? `Môn hiện tại: ${courseName}` : 'Chọn một môn học để tải tài liệu.'}
+                            </Text>
+                        </div>
 
-                    <div className="text-center">
-                        <Text size="lg" inline className="text-zinc-200 font-semibold mb-2">
-                            Kéo thả tài liệu bài giảng vào đây
-                        </Text>
-                        <Text size="sm" inline className="text-zinc-500">
-                            Hoặc click để chọn file (PDF, DOCX, PPTX). Tối đa 50MB.
-                        </Text>
-                    </div>
-                </Group>
-            </Dropzone>
-
-            {file && (
-                <Group justify="space-between" mt="md" className="bg-zinc-950 p-3 rounded-xl border border-zinc-800">
-                    <Group gap="sm">
-                        <FileText className="w-5 h-5 text-indigo-400" />
-                        <Text size="sm" className="text-zinc-300 font-medium">
-                            {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                        </Text>
+                        <IconFileTypePdf size={22} color="var(--mantine-color-red-4)" />
                     </Group>
+
+                    <Text size="xs" c="dimmed">
+                        Hệ thống chỉ nhận file PDF để đảm bảo luồng xử lý chunking và ingestion ổn định.
+                    </Text>
+                </Stack>
+            </Paper>
+
+            <Paper withBorder radius="md" p="md" bg="var(--mantine-color-dark-8)">
+                <Stack gap="md">
+                    <FileButton resetRef={resetRef} onChange={setFile} accept="application/pdf">
+                        {(props) => (
+                            <Button {...props} leftSection={<IconUpload size={16} />} variant="light" fullWidth>
+                                Chọn file PDF
+                            </Button>
+                        )}
+                    </FileButton>
+
+                    {file ? (
+                        <Paper withBorder radius="md" p="sm" bg="var(--mantine-color-dark-9)">
+                            <Group justify="space-between" gap="sm">
+                                <div>
+                                    <Text size="sm" fw={600} c="gray.0" lineClamp={1}>
+                                        {file.name}
+                                    </Text>
+                                    <Text size="xs" c="dimmed">
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                    </Text>
+                                </div>
+
+                                <Button
+                                    variant="light"
+                                    color="red"
+                                    size="xs"
+                                    leftSection={<IconTrash size={14} />}
+                                    onClick={clearFile}
+                                >
+                                    Xóa
+                                </Button>
+                            </Group>
+                        </Paper>
+                    ) : (
+                        <Text size="xs" c="dimmed">
+                            Chưa chọn file nào.
+                        </Text>
+                    )}
+
                     <Button
-                        color="brandBlue"
-                        radius="xs"
-                        onClick={handleUpload}
-                        disabled={uploadMutation.isPending}
-                        leftSection={uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                        onClick={() => file && uploadMutation.mutate(file)}
+                        disabled={!file}
+                        loading={uploadMutation.isPending}
+                        loaderProps={{ type: 'dots' }}
+                        fullWidth
                     >
-                        {uploadMutation.isPending ? 'Đang xử lý...' : 'Bắt đầu nạp tài liệu'}
+                        Nạp tài liệu vào môn học
                     </Button>
-                </Group>
-            )}
-        </Box>
+                </Stack>
+            </Paper>
+        </Stack>
     );
 }

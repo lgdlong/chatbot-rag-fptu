@@ -1,7 +1,7 @@
 'use client';
 
 import { AppShell, Group, Title, Button } from '@mantine/core';
-import { LogOut, BookOpen } from 'lucide-react';
+import { IconLogout, IconBook } from '@tabler/icons-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
@@ -18,12 +18,12 @@ export default function LecturerLayout({ children }: { children: React.ReactNode
             <AppShell.Header bg="zinc.900" style={{ borderBottom: '1px solid #27272a' }}>
                 <Group h="100%" px="xl" justify="space-between">
                     <Group gap="xs">
-                        <BookOpen className="w-5 h-5 text-amber-400" />
-                        <Title order={4} c="brandGold.5" className="text-sm font-bold uppercase tracking-wider">
+                        <IconBook size={20} color="var(--mantine-color-gold-5)" />
+                        <Title order={4} c="gold.5" style={{ fontSize: 'var(--mantine-font-size-sm)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                             Cổng Giảng Viên - Quản Lý Học Liệu
                         </Title>
                     </Group>
-                    <Button variant="subtle" color="red" radius="xs" size="xs" leftSection={<LogOut className="w-3.5 h-3.5" />} onClick={handleLogout}>
+                    <Button variant="light" color="red" radius="xs" size="xs" leftSection={<IconLogout size={14} />} onClick={handleLogout}>
                         Đăng xuất Portal
                     </Button>
                 </Group>
