@@ -174,8 +174,8 @@ func processDocument(payload JobPayload, db *sql.DB) error {
 		pageNumber++
 	}
 
-	// 4. Dọn dẹp file PDF gốc nháp
-	_ = os.Remove(filePath)
+	// 4. Giữ lại file PDF gốc để người dùng có thể tải về (không xóa)
+	// _ = os.Remove(filePath)
 	return nil
 }
 

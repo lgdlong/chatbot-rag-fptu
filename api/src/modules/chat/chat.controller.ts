@@ -7,7 +7,7 @@ import { prisma } from "../auth/services/db.service.js";
 import { DocumentRepository } from "../documents/repositories/document.repository.js";
 import { ENV } from "../../config/env.js";
 import { GoogleGenAI } from "@google/genai";
-import { getOrInitializeSubscription } from "../subscriptions/subscription.controller.js";
+import { getOrInitializeSubscription } from "../subscriptions/subscription.service.js";
 
 export const chatRouter = new Hono();
 

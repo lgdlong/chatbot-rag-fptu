@@ -4,6 +4,7 @@ import { prisma } from './services/db.service.js'
 import { organization } from 'better-auth/plugins/organization'
 import { admin } from 'better-auth/plugins/admin'
 import { openAPI } from 'better-auth/plugins'
+import { ENV } from '../../config/env.js'
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -15,8 +16,8 @@ export const auth = betterAuth({
   },
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+      clientId: ENV.GOOGLE_CLIENT_ID,
+      clientSecret: ENV.GOOGLE_CLIENT_SECRET,
     },
   },
   plugins: [

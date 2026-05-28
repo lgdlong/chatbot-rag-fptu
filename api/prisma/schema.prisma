@@ -215,7 +215,7 @@ model Transaction {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount         Int
   status         String   // PENDING, PAID, CANCELLED
-  payosOrderId   String?  @map("payos_order_id")
+  sepayReference String?  @map("sepay_reference")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("transactions")

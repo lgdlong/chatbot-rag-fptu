@@ -226,11 +226,11 @@ async function runTests() {
     console.log(`✅ Thành công! Kiểm soát hạn mức tin nhắn hoạt động 100% chính xác.`);
 
     // ==========================================
-    // 5. Kiểm thử Nâng cấp Gói dịch vụ qua PayOS Webhook
+    // 5. Kiểm thử Nâng cấp Gói dịch vụ qua SePay Webhook
     // ==========================================
-    console.log("\n💰 [Test 5] Giả lập Webhook PayOS nâng cấp gói...");
+    console.log("\n💰 [Test 5] Giả lập Webhook SePay nâng cấp gói...");
     
-    const orderCode = Number(String(Date.now()).substring(4));
+    const sepayReference = `FPTU-SILVER-${Date.now()}`;
     
     // Tạo Transaction PENDING
     const transaction = await prisma.transaction.create({
@@ -238,15 +238,29 @@ async function runTests() {
         userId: testStudentId,
         amount: 10000, // SILVER nâng cấp giá 10k
         status: "PENDING",
-        payosOrderId: String(orderCode)
+        sepayReference
       }
     });
 
-    console.log(`- Đã tạo Transaction. OrderCode: ${orderCode}, Số tiền: ${transaction.amount} VNĐ, Trạng thái: ${transaction.status}`);
+    console.log(`- Đã tạo Transaction. Mã tham chiếu: ${sepayReference}, Số tiền: ${transaction.amount} VNĐ, Trạng thái: ${transaction.status}`);
 
     // Giả lập webhook nhận tín hiệu thành công
+    const webhookPayload = {
+      id: 92704,
+      gateway: "Vietcombank",
+      transactionDate: new Date().toISOString(),
+      accountNumber: "0123499999",
+      code: null,
+      content: `Thanh toan ${sepayReference}`,
+      transferType: "in" as const,
+      transferAmount: 10000,
+      accumulated: 19077000,
+      subAccount: null,
+      referenceCode: sepayReference
+    };
+
     const transactionRecord = await prisma.transaction.findFirst({
-      where: { payosOrderId: String(orderCode), status: "PENDING" }
+      where: { sepayReference: webhookPayload.referenceCode, status: "PENDING" }
     });
 
     if (transactionRecord) {

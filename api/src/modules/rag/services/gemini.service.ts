@@ -52,7 +52,7 @@ export class GeminiService {
     onChunk: (text: string) => void
   ): Promise<string> {
     const ai = this.getSdk()
-    const modelName = process.env.GEMINI_TEXT_MODEL || 'gemini-3.1-flash-lite'
+    const modelName = ENV.GEMINI_TEXT_MODEL
 
     // Nhúng toàn bộ Context PDF vào luồng tin nhắn user hiện tại
     const contents = [
