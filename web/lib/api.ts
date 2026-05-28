@@ -1,133 +1,68 @@
 // web/lib/api.ts
+import { authApi } from "../api/auth";
+import { coursesApi } from "../api/courses";
+import { documentsApi } from "../api/documents";
+import { chatApi, streamChat as realStreamChat } from "../api/chat";
+
 export const API_BASE_URL = "http://localhost:8000";
 
-// Biến lưu trạng thái user ảo trên RAM
-let mockUser: any = null;
-
+// Bắc cầu re-export các hàm API thật sử dụng Axios
 export const api = {
-  // 1. Kiểm tra session
-  getSession: async () => {
-    await new Promise((r) => setTimeout(r, 500));
-    if (!mockUser) throw new Error("Chưa đăng nhập");
-    return { user: mockUser };
-  },
+    // 1. Kiểm tra session thật từ Better Auth
+    getSession: async () => {
+        return authApi.getSession();
+    },
 
-  // 2. Đăng nhập giả lập hỗ trợ 3 Role
-  devLogin: async (role: 'student' | 'lecturer' | 'admin') => {
-    await new Promise((r) => setTimeout(r, 800));
+    // 2. Đăng nhập môi trường phát triển (Dev login)
+    devLogin: async (role: 'student' | 'lecturer' | 'admin') => {
+        return authApi.devLogin(role);
+    },
 
-    // Gán thông tin user tùy theo role được chọn
-    if (role === 'student') {
-      mockUser = { id: "stu1", name: "Sinh viên FPTU", role: "student" };
-    } else if (role === 'lecturer') {
-      mockUser = { id: "lec1", name: "Giảng viên FPTU", role: "lecturer" };
-    } else {
-      mockUser = { id: "adm1", name: "Quản trị viên Hệ thống", role: "admin" };
-    }
+    // Đăng nhập email thật
+    login: async (email: string, password: string) => {
+        return authApi.login(email, password);
+    },
 
-    return { success: true, user: mockUser };
-  },
+    // 3. Đăng xuất thật qua Better Auth
+    logout: async () => {
+        return authApi.logout();
+    },
 
-  // 3. Đăng xuất giả lập
-  logout: async () => {
-    await new Promise((r) => setTimeout(r, 500));
-    mockUser = null;
-    return { success: true };
-  },
+    // 4. Lấy danh sách khóa học thật từ DB
+    getCourses: async () => {
+        return coursesApi.getCourses();
+    },
 
-  // 3. Lấy danh sách khóa học
-  getCourses: async () => {
-    await new Promise((r) => setTimeout(r, 600));
-    return {
-      courses: [
-        { id: "c1", code: "SWD392", name: "Software Architecture and Design" },
-        { id: "c2", code: "PRJ301", name: "Java Web Development" },
-      ],
-    };
-  },
+    // 5. Lấy danh sách tài liệu thật theo courseId
+    getDocuments: async (courseId: string) => {
+        return documentsApi.getDocuments(courseId);
+    },
 
-  // 4. Lấy danh sách tài liệu
-  getDocuments: async (courseId: string) => {
-    await new Promise((r) => setTimeout(r, 500));
-    if (courseId === "c1") {
-      return {
-        documents: [
-          { id: "d1", name: "Chapter_1_UML.pdf", fileType: "pdf", status: "COMPLETED", createdAt: new Date().toISOString() },
-          { id: "d2", name: "Chapter_2_Design_Patterns.pdf", fileType: "pdf", status: "PROCESSING", createdAt: new Date().toISOString() },
-        ],
-      };
-    }
-    return { documents: [] };
-  },
+    // 6. Nạp tài liệu mới thật qua multipart FormData
+    uploadDocument: async (courseId: string, file: File) => {
+        return documentsApi.uploadDocument(courseId, file);
+    },
 
-  // 5. Nạp tài liệu mới (Upload)
-  uploadDocument: async (courseId: string, file: File) => {
-    await new Promise((r) => setTimeout(r, 1500)); // Giả lập upload mất 1.5s
-    return { success: true };
-  },
+    // 7. Xóa tài liệu thật
+    deleteDocument: async (courseId: string, documentId: string) => {
+        return documentsApi.deleteDocument(courseId, documentId);
+    },
 
-  // 6. Xóa tài liệu
-  deleteDocument: async (courseId: string, documentId: string) => {
-    await new Promise((r) => setTimeout(r, 800));
-    return { success: true };
-  },
+    // 8. Lấy danh sách lịch sử Chat thật
+    getChatSessions: async () => {
+        return chatApi.getChatSessions();
+    },
 
-  // 7. Lấy danh sách lịch sử Chat
-  getChatSessions: async () => {
-    await new Promise((r) => setTimeout(r, 400));
-    return {
-      sessions: [
-        { id: "s1", title: "Hỏi về Use Case", updatedAt: new Date().toISOString(), course: { name: "Software Architecture and Design", code: "SWD392" } },
-      ],
-    };
-  },
+    // 9. Tạo phòng chat mới
+    createChatSession: async (courseId?: string) => {
+        return chatApi.createChatSession(courseId);
+    },
 
-  // 8. Tạo phòng chat mới
-  createChatSession: async (courseId: string) => {
-    await new Promise((r) => setTimeout(r, 600));
-    return { session: { id: "s_new_" + Date.now() } };
-  },
-
-  // 9. Lấy chi tiết tin nhắn trong 1 phòng chat
-  getChatSessionDetails: async (sessionId: string) => {
-    await new Promise((r) => setTimeout(r, 500));
-    return {
-      session: {
-        id: sessionId,
-        course: { name: "Software Architecture and Design", code: "SWD392" },
-        messages: [
-          { id: "m1", sender: "USER", content: "Use Case Diagram là gì?", createdAt: new Date().toISOString() },
-          {
-            id: "m2",
-            sender: "ASSISTANT",
-            content: "Use Case Diagram là một biểu đồ trong UML dùng để mô tả các chức năng của hệ thống dưới góc nhìn của người dùng.",
-            citations: [{ documentName: "Chapter_1_UML.pdf", page: 12 }],
-            createdAt: new Date().toISOString()
-          },
-        ],
-      },
-    };
-  },
+    // 10. Lấy chi tiết lịch sử tin nhắn trong phòng chat thật
+    getChatSessionDetails: async (sessionId: string) => {
+        return chatApi.getChatSessionDetails(sessionId);
+    },
 };
 
-// 10. Streaming Tin nhắn giả lập (Như ChatGPT đang gõ chữ)
-export async function streamChat(
-  sessionId: string,
-  message: string,
-  onChunk: (chunk: string) => void,
-  onCitations: (citations: any[]) => void,
-  onError: (error: string) => void,
-) {
-  const dummyResponse = " Chào bạn, đây là câu trả lời được stream trực tiếp từ Frontend để test giao diện. Nếu cấu trúc này ổn, khi ghép API thật vào, hệ thống RAG sẽ trả lời mượt mà y như thế này!";
-
-  let i = 0;
-  const interval = setInterval(() => {
-    onChunk(dummyResponse.charAt(i));
-    i++;
-    if (i >= dummyResponse.length) {
-      clearInterval(interval);
-      // Gửi nguồn trích dẫn sau khi gõ xong
-      onCitations([{ documentName: "Chapter_1_UML.pdf", page: 15 }]);
-    }
-  }, 30); // Tốc độ gõ: 30ms/chữ
-}
+// 11. Đăng ký hàm streamChat kết nối luồng SSE từ Backend
+export const streamChat = realStreamChat;
