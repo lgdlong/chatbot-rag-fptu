@@ -1,11 +1,14 @@
 'use client';
 
-import { AppShell, Box, NavLink, Text, Progress, Group, Badge, Button, Loader } from '@mantine/core';
-import { IconMessage, IconPlus, IconArrowRight } from '@tabler/icons-react';
-import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from "next/link";
+import { AppShell, ActionIcon, Badge, Box, Button, Group, Loader, Menu, Modal, NavLink, Progress, Stack, Text, TextInput } from '@mantine/core';
+import { IconArrowRight, IconDotsVertical, IconMessage, IconPencil, IconPlus, IconTrash } from '@tabler/icons-react';
+import { api } from '@/lib/api';
+import { chatApi } from '@/api/chat';
+import type { ChatSession } from '@/types';
 
 function formatSessionScope(session: {
     scopeMode?: 'ALL_COURSES' | 'SELECTED_COURSES' | 'SELECTED_DOCUMENTS';
@@ -47,7 +50,12 @@ function formatSessionScope(session: {
 
 export function ChatSidebar() {
     const searchParams = useSearchParams();
+    const router = useRouter();
+    const queryClient = useQueryClient();
     const currentSessionId = searchParams.get('sessionId');
+    const [renameSession, setRenameSession] = useState<ChatSession | null>(null);
+    const [renameTitle, setRenameTitle] = useState('');
+    const [deleteSession, setDeleteSession] = useState<ChatSession | null>(null);
 
     // 1. Tải danh sách phòng chat thật
     const { data: sessionsData, isLoading: isSessionsLoading } = useQuery({
@@ -78,6 +86,70 @@ export function ChatSidebar() {
         ? `Đặt lại từ lần reset gần nhất: ${new Date(subscription.lastReset).toLocaleString('vi-VN')}`
         : "Chưa có thông tin lần reset gần nhất.";
 
+    const renameMutation = useMutation({
+        mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+            chatApi.renameChatSession(sessionId, title),
+        onSuccess: (_, variables) => {
+            queryClient.invalidateQueries({ queryKey: ["chat-session-details", variables.sessionId] });
+            queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+            setRenameSession(null);
+            setRenameTitle('');
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: (sessionId: string) => chatApi.deleteChatSession(sessionId),
+        onSuccess: (_, sessionId) => {
+            queryClient.invalidateQueries({ queryKey: ["chat-session-details", sessionId] });
+            queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
+            if (currentSessionId === sessionId) {
+                router.push('/student/chat');
+            }
+            setDeleteSession(null);
+        },
+    });
+
+    const openRenameModal = (session: ChatSession) => {
+        setRenameSession(session);
+        setRenameTitle(session.title || 'Cuộc hội thoại');
+    };
+
+    const closeRenameModal = () => {
+        if (renameMutation.isPending) {
+            return;
+        }
+        setRenameSession(null);
+        setRenameTitle('');
+    };
+
+    const closeDeleteModal = () => {
+        if (deleteMutation.isPending) {
+            return;
+        }
+        setDeleteSession(null);
+    };
+
+    const submitRename = () => {
+        if (!renameSession) {
+            return;
+        }
+
+        const nextTitle = renameTitle.trim();
+        if (!nextTitle) {
+            return;
+        }
+
+        renameMutation.mutate({ sessionId: renameSession.id, title: nextTitle });
+    };
+
+    const submitDelete = () => {
+        if (!deleteSession) {
+            return;
+        }
+
+        deleteMutation.mutate(deleteSession.id);
+    };
+
     return (
         <AppShell.Navbar p="md" display="flex" style={{ flexDirection: 'column' }}>
             <NavLink
@@ -103,15 +175,43 @@ export function ChatSidebar() {
                     <Text size="xs" c="dimmed" ta="center" py="md">Chưa có lịch sử trò chuyện</Text>
                 ) : (
                     sessions.map((session) => (
-                        <NavLink
-                            component={Link}
-                            key={session.id}
-                            href={`/student/chat?sessionId=${session.id}`}
-                            label={session.title || "Cuộc hội thoại"}
-                            description={formatSessionScope(session)}
-                            leftSection={<IconMessage size="1rem" stroke={1.5} />}
-                            active={currentSessionId === session.id}
-                        />
+                        <Group key={session.id} gap="xs" wrap="nowrap" align="stretch" mb="xs">
+                            <NavLink
+                                component={Link}
+                                href={`/student/chat?sessionId=${session.id}`}
+                                label={session.title || "Cuộc hội thoại"}
+                                description={formatSessionScope(session)}
+                                leftSection={<IconMessage size="1rem" stroke={1.5} />}
+                                active={currentSessionId === session.id}
+                                style={{ flex: 1, minWidth: 0 }}
+                            />
+                            <Menu position="bottom-end" withinPortal shadow="md" width={180}>
+                                <Menu.Target>
+                                    <ActionIcon
+                                        variant="subtle"
+                                        color="gray"
+                                        aria-label={`Tùy chọn cho ${session.title || "cuộc hội thoại"}`}
+                                    >
+                                        <IconDotsVertical size="1rem" />
+                                    </ActionIcon>
+                                </Menu.Target>
+                                <Menu.Dropdown>
+                                    <Menu.Item
+                                        leftSection={<IconPencil size="0.85rem" />}
+                                        onClick={() => openRenameModal(session)}
+                                    >
+                                        Đổi tên
+                                    </Menu.Item>
+                                    <Menu.Item
+                                        leftSection={<IconTrash size="0.85rem" />}
+                                        color="red"
+                                        onClick={() => setDeleteSession(session)}
+                                    >
+                                        Xóa
+                                    </Menu.Item>
+                                </Menu.Dropdown>
+                            </Menu>
+                        </Group>
                     ))
                 )}
             </Box>
@@ -156,6 +256,57 @@ export function ChatSidebar() {
                     Nâng cấp gói
                 </Button>
             </Box>
+
+            <Modal
+                opened={!!renameSession}
+                onClose={closeRenameModal}
+                title="Đổi tên cuộc hội thoại"
+                centered
+            >
+                <Stack gap="md">
+                    <TextInput
+                        label="Tên cuộc hội thoại"
+                        value={renameTitle}
+                        onChange={(event) => setRenameTitle(event.currentTarget.value)}
+                        placeholder="Nhập tên mới"
+                        autoFocus
+                    />
+                    <Group justify="end">
+                        <Button variant="light" color="gray" onClick={closeRenameModal} disabled={renameMutation.isPending}>
+                            Hủy
+                        </Button>
+                        <Button
+                            onClick={submitRename}
+                            loading={renameMutation.isPending}
+                            disabled={!renameTitle.trim()}
+                            color="brandBlue"
+                        >
+                            Lưu
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
+
+            <Modal
+                opened={!!deleteSession}
+                onClose={closeDeleteModal}
+                title="Xóa cuộc hội thoại"
+                centered
+            >
+                <Stack gap="md">
+                    <Text size="sm">
+                        Bạn có chắc muốn xóa cuộc hội thoại {deleteSession?.title || 'Cuộc hội thoại'}? Hành động này không thể hoàn tác.
+                    </Text>
+                    <Group justify="end">
+                        <Button variant="light" color="gray" onClick={closeDeleteModal} disabled={deleteMutation.isPending}>
+                            Hủy
+                        </Button>
+                        <Button color="red" onClick={submitDelete} loading={deleteMutation.isPending}>
+                            Xóa
+                        </Button>
+                    </Group>
+                </Stack>
+            </Modal>
         </AppShell.Navbar>
     );
 }

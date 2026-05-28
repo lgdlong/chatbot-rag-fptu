@@ -9,5 +9,6 @@ export const MOCK_SUBSCRIPTION: Subscription = {
     tier: 'SILVER',
     messageCount: 12,
     maxMessages: 50,
-    endDate: '2026-06-27T00:00:00Z'
+    endDate: '2026-06-27T00:00:00Z',
+    lastReset: '2026-05-28T08:00:00Z',
 };

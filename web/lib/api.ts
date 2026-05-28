@@ -34,6 +34,21 @@ export const api = {
         return coursesApi.getCourses();
     },
 
+    // 4b. Tạo môn học mới
+    createCourse: async (payload: { code: string; name: string; }) => {
+        return coursesApi.createCourse(payload);
+    },
+
+    // 4b. Cập nhật môn học
+    updateCourse: async (courseId: string, payload: { code: string; name: string; }) => {
+        return coursesApi.updateCourse(courseId, payload);
+    },
+
+    // 4c. Xóa môn học
+    deleteCourse: async (courseId: string) => {
+        return coursesApi.deleteCourse(courseId);
+    },
+
     // 5. Lấy danh sách tài liệu thật theo courseId
     getDocuments: async (courseId: string) => {
         return documentsApi.getDocuments(courseId);

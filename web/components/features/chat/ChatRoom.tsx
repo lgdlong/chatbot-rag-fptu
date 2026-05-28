@@ -593,7 +593,8 @@ function ChatRoomContent() {
                             Đã chọn {selectedDocumentIds.length} tài liệu từ {selectedCourseIds.length} môn
                         </Text>
                         <Button
-                            variant="subtle"
+                            variant="light"
+                            color="gray"
                             size="xs"
                             onClick={() => setSelectedDocumentIds([])}
                             disabled={selectedDocumentIds.length === 0}
@@ -711,7 +712,7 @@ function ChatRoomContent() {
                         </Text>
 
                         <Group gap="xs">
-                            <Button variant="default" onClick={() => setPickerOpened(false)}>
+                            <Button variant="light" color="gray" onClick={() => setPickerOpened(false)}>
                                 Hủy
                             </Button>
                             <Button

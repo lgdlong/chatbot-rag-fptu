@@ -3,7 +3,7 @@
 import { AppShell, Burger, Group, Title, Button } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { ChatSidebar } from '@/components/features/chat/ChatSidebar';
-import { LogOut } from 'lucide-react';
+import { IconLogout } from '@tabler/icons-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
@@ -21,14 +21,15 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         <AppShell
             header={{ height: 60 }}
             navbar={{ width: 280, breakpoint: 'sm', collapsed: { mobile: !opened } }}
+            padding="md"
         >
             <AppShell.Header bg="zinc.900" style={{ borderBottom: '1px solid #27272a' }}>
                 <Group h="100%" px="md" justify="space-between">
                     <Group>
                         <Burger opened={opened} onClick={toggle} hiddenFrom="sm" size="sm" color="gray" />
-                        <Title order={4} c="brandBlue.4" className="text-sm font-bold">FPTU RAG - SINH VIÊN</Title>
+                        <Title order={4} c="deepBlue.4" style={{ fontSize: 'var(--mantine-font-size-sm)', fontWeight: 700 }}>FPTU RAG - SINH VIÊN</Title>
                     </Group>
-                    <Button variant="subtle" color="red" radius="xs" size="xs" leftSection={<LogOut className="w-3.5 h-3.5" />} onClick={handleLogout}>
+                    <Button variant="light" color="red" radius="xs" size="xs" leftSection={<IconLogout size={14} />} onClick={handleLogout}>
                         Đăng xuất
                     </Button>
                 </Group>
@@ -42,7 +43,16 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 <ChatSidebar />
             </Suspense>
 
-            <AppShell.Main bg="zinc.950">
+            <AppShell.Main
+                bg="zinc.950"
+                style={{
+                    display: 'flex',
+                    minHeight: 0,
+                    width: '100%',
+                    height: 'calc(100dvh - var(--app-shell-header-height))',
+                    overflow: 'hidden',
+                }}
+            >
                 {children}
             </AppShell.Main>
         </AppShell>
