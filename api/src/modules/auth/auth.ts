@@ -9,6 +9,7 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
+  trustedOrigins: ["http://localhost:3000"], // Whitelist Next.js frontend origin for CSRF
   emailAndPassword: {
     enabled: true,
     allowedDomains: ["@fpt.edu.vn", "@gmail.com"],

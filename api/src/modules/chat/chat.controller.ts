@@ -16,37 +16,69 @@ import crypto from "node:crypto";
 // Dev login route - automatically creates session for user-test-e2e-id
 chatRouter.post("/dev-login", async (c) => {
   try {
+    const { role } = await c.req.json().catch(() => ({ role: 'student' }));
+    
+    let mappedRole = "STUDENT";
+    let email = "student-test@fpt.edu.vn";
+    let name = "Sinh viên E2E Test";
+    let userId = "user-test-e2e-student-id";
+    let accountId = "account-test-e2e-student-id";
+
+    if (role === "lecturer") {
+      mappedRole = "LECTURER";
+      email = "lecturer-test@fpt.edu.vn";
+      name = "Giảng viên E2E Test";
+      userId = "user-test-e2e-lecturer-id";
+      accountId = "account-test-e2e-lecturer-id";
+    } else if (role === "admin") {
+      mappedRole = "ADMIN";
+      email = "admin-test@fpt.edu.vn";
+      name = "Quản trị viên E2E Test";
+      userId = "user-test-e2e-admin-id";
+      accountId = "account-test-e2e-admin-id";
+    }
+
     // 1. Ensure seed data exists in database
-    // Ensure User
-    await prisma.user.upsert({
-      where: { id: "user-test-e2e-id" },
-      update: {},
+    // Ensure User by email to prevent unique constraint conflicts
+    const user = await prisma.user.upsert({
+      where: { email },
+      update: {
+        role: mappedRole,
+      },
       create: {
-        id: "user-test-e2e-id",
-        name: "Sinh viên E2E Test",
-        email: "student-test@fpt.edu.vn",
-        role: "STUDENT",
+        id: userId,
+        name,
+        email,
+        role: mappedRole,
       },
     });
-
-
 
     // Ensure Account (password credential)
     const passwordHash =
       "299f315028cd53bed28cf3e9006d6393:ff5ad14a24855e26ff311acadf19af30d112bd83bf5ab6d8d9bb827a6f88c313ade1e3d676b54b50b3384dc58dd812076bb4a7188e98c1b92ea027630b8dfaf1"; // SuperPassword123!
-    await prisma.account.upsert({
-      where: { id: "account-test-e2e-id" },
-      update: {
-        password: passwordHash,
-      },
-      create: {
-        id: "account-test-e2e-id",
-        accountId: "user-test-e2e-id",
-        providerId: "credential",
-        userId: "user-test-e2e-id",
-        password: passwordHash,
-      },
+    
+    const existingAccount = await prisma.account.findFirst({
+      where: { userId: user.id },
     });
+
+    if (!existingAccount) {
+      await prisma.account.create({
+        data: {
+          id: accountId,
+          accountId: user.id,
+          providerId: "credential",
+          userId: user.id,
+          password: passwordHash,
+        },
+      });
+    } else {
+      await prisma.account.update({
+        where: { id: existingAccount.id },
+        data: {
+          password: passwordHash,
+        },
+      });
+    }
 
     // 2. Perform direct sign-in via auth.handler to get a cryptographically signed session cookie
     const signInReq = new Request(
@@ -57,7 +89,7 @@ chatRouter.post("/dev-login", async (c) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email: "student-test@fpt.edu.vn",
+          email,
           password: "SuperPassword123!",
         }),
       },
@@ -75,8 +107,6 @@ chatRouter.post("/dev-login", async (c) => {
 
     // 4. Return success and user info
     const responseBody = await authRes.json();
-
-
 
     return c.json({
       success: true,
