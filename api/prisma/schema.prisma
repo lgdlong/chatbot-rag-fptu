@@ -24,8 +24,6 @@ model User {
   banExpires    DateTime?     @map("ban_expires")
   sessions      Session[]
   accounts      Account[]
-  members       Member[]
-  invitations   Invitation[]
   chatSessions  ChatSession[]
   subscriptions Subscription[]
   transactions  Transaction[]
@@ -35,17 +33,16 @@ model User {
 }
 
 model Session {
-  id                   String   @id
-  expiresAt            DateTime @map("expires_at")
-  token                String
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
-  ipAddress            String?  @map("ip_address")
-  userAgent            String?  @map("user_agent")
-  userId               String   @map("user_id")
-  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  activeOrganizationId String?  @map("active_organization_id")
-  impersonatedBy       String?  @map("impersonated_by")
+  id             String   @id
+  expiresAt      DateTime @map("expires_at")
+  token          String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  impersonatedBy String?  @map("impersonated_by")
 
   @@unique([token])
   @@index([userId])
@@ -84,52 +81,6 @@ model Verification {
   @@map("verifications")
 }
 
-model Organization {
-  id          String       @id
-  name        String
-  slug        String
-  logo        String?
-  createdAt   DateTime     @map("created_at")
-  metadata    String?
-  members     Member[]
-  invitations Invitation[]
-  courses     Course[]
-
-  @@unique([slug])
-  @@map("organizations")
-}
-
-model Member {
-  id             String       @id
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  userId         String       @map("user_id")
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           String       @default("member")
-  createdAt      DateTime     @map("created_at")
-
-  @@index([organizationId])
-  @@index([userId])
-  @@map("members")
-}
-
-model Invitation {
-  id             String       @id
-  organizationId String       @map("organization_id")
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  email          String
-  role           String?
-  status         String       @default("pending")
-  expiresAt      DateTime     @map("expires_at")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  inviterId      String       @map("inviter_id")
-  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
-
-  @@index([organizationId])
-  @@index([email])
-  @@map("invitations")
-}
-
 // Domain Models
 
 // Khóa học / Môn học
@@ -137,8 +88,6 @@ model Course {
   id             String        @id @default(uuid())
   code           String        // Ví dụ: SWD392
   name           String        // Ví dụ: Software Architecture
-  organizationId String        @map("organization_id")
-  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   documents      Document[]
   sessions       ChatSession[]
   createdAt      DateTime      @default(now()) @map("created_at")

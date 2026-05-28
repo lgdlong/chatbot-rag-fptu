@@ -5,6 +5,8 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { auth } from "./modules/auth/auth.js";
 import { ENV } from "./config/env.js";
+import { swaggerUI } from "@hono/swagger-ui";
+import { openApiDoc } from "./config/openapi.js";
 
 import { prisma } from "./modules/auth/services/db.service.js";
 
@@ -45,6 +47,10 @@ app.delete(
   "/api/courses/:courseId/documents/:documentId",
   deleteDocumentHandler,
 );
+
+// Serve OpenAPI document & Swagger UI
+app.get("/api/doc", (c) => c.json(openApiDoc));
+app.get("/api/docs", swaggerUI({ url: "/api/doc" }));
 
 app.get("/", (c) => {
   return c.text("Hello Hono!");

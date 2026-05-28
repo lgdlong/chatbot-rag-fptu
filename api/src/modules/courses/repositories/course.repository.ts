@@ -9,13 +9,6 @@ export class CourseRepository {
   static async findById(id: string) {
     return prisma.course.findUnique({
       where: { id },
-      include: { organization: true },
-    })
-  }
-
-  static async findManyByOrganization(organizationId: string) {
-    return prisma.course.findMany({
-      where: { organizationId },
     })
   }
 

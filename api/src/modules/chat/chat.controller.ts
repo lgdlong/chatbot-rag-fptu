@@ -29,30 +29,7 @@ chatRouter.post("/dev-login", async (c) => {
       },
     });
 
-    // Ensure Organization
-    await prisma.organization.upsert({
-      where: { id: "org-test-e2e-id" },
-      update: {},
-      create: {
-        id: "org-test-e2e-id",
-        name: "FPT University E2E Test Org",
-        slug: "fptu-e2e-test-org",
-        createdAt: new Date(),
-      },
-    });
 
-    // Ensure Member
-    await prisma.member.upsert({
-      where: { id: "member-test-e2e-id" },
-      update: {},
-      create: {
-        id: "member-test-e2e-id",
-        organizationId: "org-test-e2e-id",
-        userId: "user-test-e2e-id",
-        role: "member",
-        createdAt: new Date(),
-      },
-    });
 
     // Ensure Account (password credential)
     const passwordHash =
@@ -99,13 +76,7 @@ chatRouter.post("/dev-login", async (c) => {
     // 4. Return success and user info
     const responseBody = await authRes.json();
 
-    // 5. Update session in the database to bind to the test organization
-    if (responseBody.token) {
-      await prisma.session.updateMany({
-        where: { token: responseBody.token },
-        data: { activeOrganizationId: "org-test-e2e-id" },
-      });
-    }
+
 
     return c.json({
       success: true,
