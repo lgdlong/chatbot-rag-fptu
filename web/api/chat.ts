@@ -1,7 +1,14 @@
 // web/api/chat.ts
 import { apiClient } from "./client";
-import { ChatSession, ChatMessage, Citation } from "../types";
+import { ChatSession, ChatMessage, DocumentCatalogGroup } from "../types";
 import { API_BASE_URL, TENANT_ID_HEADER, DEFAULT_TENANT_ID } from "../constants";
+
+export type CreateChatSessionInput = {
+    scopeMode?: 'ALL_COURSES' | 'SELECTED_COURSES' | 'SELECTED_DOCUMENTS';
+    courseIds?: string[];
+    courseId?: string | null;
+    documentIds?: string[];
+};
 
 export interface ChatSessionsResponse {
     sessions: ChatSession[];
@@ -22,6 +29,12 @@ export interface ChatSessionDetailsResponse {
     };
 }
 
+export interface DocumentCatalogResponse {
+    groups: DocumentCatalogGroup[];
+    totalCourses: number;
+    totalDocuments: number;
+}
+
 export interface StreamCitation {
     documentName: string;
     page: number;
@@ -36,9 +49,14 @@ export const chatApi = {
         return response.data;
     },
 
-    // 2. Tạo phòng chat mới (courseId truyền vào optional)
-    createChatSession: async (courseId?: string): Promise<CreateChatSessionResponse> => {
-        const response = await apiClient.post<CreateChatSessionResponse>("/api/chat/sessions", { courseId });
+    getDocumentCatalog: async (): Promise<DocumentCatalogResponse> => {
+        const response = await apiClient.get<DocumentCatalogResponse>("/api/chat/document-catalog");
+        return response.data;
+    },
+
+    // 2. Tạo phòng chat mới với phạm vi rõ ràng
+    createChatSession: async (payload: CreateChatSessionInput = {}): Promise<CreateChatSessionResponse> => {
+        const response = await apiClient.post<CreateChatSessionResponse>("/api/chat/sessions", payload);
         return response.data;
     },
 
@@ -72,6 +90,9 @@ export async function streamChat(
     onCitations: (citations: StreamCitation[]) => void,
     onError: (error: string) => void,
 ) {
+    const quotaExceededMessage =
+        "Bạn đã hết quota chat của gói hiện tại. Hãy chờ đến khi quota được đặt lại hoặc nâng cấp gói cao hơn để tiếp tục.";
+
     try {
         const response = await fetch(`${API_BASE_URL}/api/chat/send`, {
             method: "POST",
@@ -85,6 +106,11 @@ export async function streamChat(
 
         if (!response.ok) {
             const errData = await response.json().catch(() => ({}));
+            if (errData && typeof errData === "object" && (errData as { error?: unknown }).error === "LIMIT_EXCEEDED") {
+                throw new Error(
+                    (errData as { message?: string }).message || quotaExceededMessage
+                );
+            }
             throw new Error(errData.error || errData.message || `Lỗi máy chủ: ${response.status}`);
         }
 
@@ -129,8 +155,9 @@ export async function streamChat(
                 }
             }
         }
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Kết nối mạng gặp sự cố.";
         console.error("Lỗi trong quá trình stream SSE RAG:", err);
-        onError(err.message || "Kết nối mạng gặp sự cố.");
+        onError(message);
     }
 }

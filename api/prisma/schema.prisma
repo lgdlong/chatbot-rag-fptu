@@ -90,6 +90,7 @@ model Course {
   name           String        // Ví dụ: Software Architecture
   documents      Document[]
   sessions       ChatSession[]
+  scopedSessions ChatSessionCourse[]
   createdAt      DateTime      @default(now()) @map("created_at")
 
   @@map("courses")
@@ -105,6 +106,7 @@ model Document {
   courseId  String   @map("course_id")
   course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   chunks    DocumentChunk[]
+  scopedSessions ChatSessionDocument[]
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("documents")
@@ -112,16 +114,47 @@ model Document {
 
 // Phiên chat của Sinh viên
 model ChatSession {
-  id        String        @id @default(uuid())
-  title     String        @default("Cuộc hội thoại mới")
-  userId    String        @map("user_id")
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  courseId  String?       @map("course_id")
-  course    Course?       @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  messages  ChatMessage[]
-  createdAt DateTime      @default(now()) @map("created_at")
+  id            String              @id @default(uuid())
+  title         String              @default("Cuộc hội thoại mới")
+  userId        String              @map("user_id")
+  user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId      String?             @map("course_id")
+  course        Course?             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  scopeMode     ChatSessionScopeMode @default(ALL_COURSES) @map("scope_mode")
+  scopedCourses ChatSessionCourse[]
+  scopedDocuments ChatSessionDocument[]
+  messages      ChatMessage[]
+  createdAt     DateTime            @default(now()) @map("created_at")
 
   @@map("chat_sessions")
+}
+
+model ChatSessionCourse {
+  id        String     @id @default(uuid())
+  sessionId String     @map("session_id")
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  courseId  String     @map("course_id")
+  course    Course     @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  @@unique([sessionId, courseId])
+  @@index([sessionId])
+  @@index([courseId])
+  @@map("chat_session_courses")
+}
+
+model ChatSessionDocument {
+  id         String      @id @default(uuid())
+  sessionId  String      @map("session_id")
+  session    ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  documentId String      @map("document_id")
+  document   Document    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@unique([sessionId, documentId])
+  @@index([sessionId])
+  @@index([documentId])
+  @@map("chat_session_documents")
 }
 
 // Tin nhắn chi tiết
@@ -140,6 +173,12 @@ model ChatMessage {
 enum SenderType {
   USER
   ASSISTANT
+}
+
+enum ChatSessionScopeMode {
+  ALL_COURSES
+  SELECTED_COURSES
+  SELECTED_DOCUMENTS
 }
 
 // Subscription & Transaction

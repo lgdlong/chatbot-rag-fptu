@@ -13,6 +13,20 @@ export class ChatRepository {
       include: {
         user: true,
         course: true,
+        scopedCourses: {
+          include: {
+            course: true,
+          },
+        },
+        scopedDocuments: {
+          include: {
+            document: {
+              include: {
+                course: true,
+              },
+            },
+          },
+        },
         messages: {
           orderBy: { createdAt: 'asc' },
         },
@@ -27,7 +41,23 @@ export class ChatRepository {
         ...(courseId ? { courseId } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      include: { course: true },
+      include: {
+        course: true,
+        scopedCourses: {
+          include: {
+            course: true,
+          },
+        },
+        scopedDocuments: {
+          include: {
+            document: {
+              include: {
+                course: true,
+              },
+            },
+          },
+        },
+      },
     })
   }
 

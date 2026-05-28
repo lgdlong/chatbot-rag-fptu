@@ -1,6 +1,6 @@
 // web/hooks/useChat.ts
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { chatApi } from "../api/chat";
+import { chatApi, type CreateChatSessionInput } from "../api/chat";
 
 export function useChatSessions() {
     return useQuery({
@@ -21,7 +21,7 @@ export function useCreateChatSession() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (courseId?: string) => chatApi.createChatSession(courseId),
+        mutationFn: (payload?: CreateChatSessionInput) => chatApi.createChatSession(payload),
         onSuccess: () => {
             // Refresh danh sách các session chat
             queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });

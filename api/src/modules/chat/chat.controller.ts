@@ -1,23 +1,233 @@
+import crypto from "node:crypto";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { ChatRepository } from "./repositories/chat.repository.js";
-import { RagService } from "../rag/services/rag.service.js";
 import { auth } from "../auth/auth.js";
 import { prisma } from "../auth/services/db.service.js";
-import { DocumentRepository } from "../documents/repositories/document.repository.js";
+import { RagService } from "../rag/services/rag.service.js";
 import { ENV } from "../../config/env.js";
 import { GoogleGenAI } from "@google/genai";
-import { getOrInitializeSubscription } from "../subscriptions/subscription.service.js";
+import { Prisma } from "@prisma/client";
+import {
+  getOrInitializeSubscription,
+} from "../subscriptions/subscription.service.js";
+import { ChatRepository } from "./repositories/chat.repository.js";
+import { DocumentMetadataService } from "./services/document-metadata.service.js";
+import {
+  buildChatScopeLabel,
+  resolveAccessibleChatDocuments,
+  resolveAccessibleChatCourseIds,
+  resolveAccessibleChatDocumentIds,
+  resolveChatScope,
+} from "./services/chat-scope.service.js";
+import { IntentRouterService } from "./services/intent-router.service.js";
 
 export const chatRouter = new Hono();
 
-import crypto from "node:crypto";
+type CreateChatSessionPayload = {
+  scopeMode?: "ALL_COURSES" | "SELECTED_COURSES" | "SELECTED_DOCUMENTS";
+  courseIds?: string[];
+  courseId?: string | null;
+  documentIds?: string[];
+};
 
-// Dev login route - automatically creates session for user-test-e2e-id
+type DocumentCatalogDocument = {
+  id: string;
+  name: string;
+  fileType: string;
+  status: string;
+  createdAt: Date;
+  selectable: boolean;
+};
+
+type DocumentCatalogGroup = {
+  course: {
+    id: string;
+    code: string;
+    name: string;
+  };
+  documents: DocumentCatalogDocument[];
+};
+
+type ChatHistoryItem = {
+  sender: "USER" | "ASSISTANT";
+  content: string;
+  citations?: unknown;
+  createdAt: Date;
+};
+
+type ChatSessionCourseRelation = {
+  course?: {
+    id: string;
+    code: string;
+    name: string;
+  } | null;
+};
+
+type ChatSessionDocumentRelation = {
+  document?: {
+    id: string;
+    name: string;
+    fileType: string;
+    status: string;
+    courseId: string;
+    course: {
+      id: string;
+      code: string;
+      name: string;
+    };
+  } | null;
+};
+
+function isValidString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isScopeMode(value: unknown): value is "ALL_COURSES" | "SELECTED_COURSES" | "SELECTED_DOCUMENTS" {
+  return value === "ALL_COURSES" || value === "SELECTED_COURSES" || value === "SELECTED_DOCUMENTS";
+}
+
+function normalizeIds(values: unknown) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      values.filter((value): value is string => typeof value === "string" && value.trim().length > 0),
+    ),
+  );
+}
+
+function resolveCreateSessionPayload(body: CreateChatSessionPayload) {
+  const legacyCourseId = isValidString(body.courseId) ? body.courseId.trim() : null;
+  const requestedCourseIds = normalizeIds(body.courseIds);
+  const requestedDocumentIds = normalizeIds(body.documentIds);
+  const scopeMode = isScopeMode(body.scopeMode)
+    ? body.scopeMode
+    : requestedDocumentIds.length > 0
+      ? "SELECTED_DOCUMENTS"
+      : (requestedCourseIds.length > 0 || legacyCourseId ? "SELECTED_COURSES" : "ALL_COURSES");
+  const courseIds = scopeMode === "SELECTED_COURSES"
+    ? Array.from(new Set([...requestedCourseIds, ...(legacyCourseId ? [legacyCourseId] : [])]))
+    : [];
+  const documentIds = scopeMode === "SELECTED_DOCUMENTS"
+    ? requestedDocumentIds
+    : [];
+
+  return {
+    scopeMode,
+    courseIds,
+    documentIds,
+    legacyCourseId:
+      scopeMode === "SELECTED_COURSES"
+        ? courseIds.length === 1
+          ? courseIds[0]
+          : null
+        : null,
+  } as const;
+}
+
+async function resolveActiveDocumentIds(scope: Awaited<ReturnType<typeof resolveChatScope>>) {
+  if (scope.documentIds.length > 0) {
+    return new Set(scope.documentIds);
+  }
+
+  if (scope.courseIds.length === 0) {
+    return new Set<string>();
+  }
+
+  const activeDocs = await prisma.document.findMany({
+    where: {
+      courseId: {
+        in: scope.courseIds,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  return new Set(activeDocs.map((document) => document.id));
+}
+
+function mapMessagesForClient(
+  messages: Array<ChatHistoryItem & { id: string; sessionId: string }>,
+  activeDocumentIds: Set<string>,
+) {
+  return messages.map((message) => {
+    let citations = message.citations as unknown;
+    if (Array.isArray(citations)) {
+      citations = citations.map((citation) => {
+        if (
+          citation &&
+          typeof citation === "object" &&
+          "documentId" in citation &&
+          typeof (citation as { documentId?: unknown }).documentId === "string" &&
+          !activeDocumentIds.has((citation as { documentId: string }).documentId)
+        ) {
+          return { ...(citation as Record<string, unknown>), isDeleted: true };
+        }
+        return citation;
+      });
+    }
+
+    return {
+      ...message,
+      citations,
+    };
+  });
+}
+
+function mapScopedCoursesForClient(scopedCourses: ChatSessionCourseRelation[]) {
+  return scopedCourses
+    .map((item) => item.course)
+    .filter((course): course is { id: string; code: string; name: string } => Boolean(course));
+}
+
+function mapScopedDocumentsForClient(scopedDocuments: ChatSessionDocumentRelation[]) {
+  return scopedDocuments
+    .map((item) => item.document)
+    .filter((document): document is NonNullable<ChatSessionDocumentRelation["document"]> => Boolean(document));
+}
+
+function mapSessionForClient<T extends {
+  scopedCourses?: ChatSessionCourseRelation[];
+  scopedDocuments?: ChatSessionDocumentRelation[];
+  scopeLabel?: string;
+  scopeSummary?: string;
+}>(session: T) {
+  return {
+    ...session,
+    scopedCourses: mapScopedCoursesForClient(session.scopedCourses ?? []),
+    scopedDocuments: mapScopedDocumentsForClient(session.scopedDocuments ?? []),
+  };
+}
+
+async function persistAssistantMessage(
+  sessionId: string,
+  content: string,
+  citations: unknown[] = [],
+) {
+  await ChatRepository.createMessage({
+    session: { connect: { id: sessionId } },
+    sender: "ASSISTANT",
+    content,
+    citations: citations as Prisma.InputJsonValue,
+  });
+}
+
+async function incrementQuota(userId: string) {
+  const subscription = await getOrInitializeSubscription(userId);
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { messageCount: { increment: 1 } },
+  });
+}
+
 chatRouter.post("/dev-login", async (c) => {
   try {
-    const { role } = await c.req.json().catch(() => ({ role: 'student' }));
-    
+    const { role } = await c.req.json().catch(() => ({ role: "student" }));
+
     let mappedRole = "STUDENT";
     let email = "student-test@fpt.edu.vn";
     let name = "Sinh viên E2E Test";
@@ -38,8 +248,6 @@ chatRouter.post("/dev-login", async (c) => {
       accountId = "account-test-e2e-admin-id";
     }
 
-    // 1. Ensure seed data exists in database
-    // Ensure User by email to prevent unique constraint conflicts
     const user = await prisma.user.upsert({
       where: { email },
       update: {
@@ -53,10 +261,9 @@ chatRouter.post("/dev-login", async (c) => {
       },
     });
 
-    // Ensure Account (password credential)
     const passwordHash =
-      "299f315028cd53bed28cf3e9006d6393:ff5ad14a24855e26ff311acadf19af30d112bd83bf5ab6d8d9bb827a6f88c313ade1e3d676b54b50b3384dc58dd812076bb4a7188e98c1b92ea027630b8dfaf1"; // SuperPassword123!
-    
+      "299f315028cd53bed28cf3e9006d6393:ff5ad14a24855e26ff311acadf19af30d112bd83bf5ab6d8d9bb827a6f88c313ade1e3d676b54b50b3384dc58dd812076bb4a7188e98c1b92ea027630b8dfaf1";
+
     const existingAccount = await prisma.account.findFirst({
       where: { userId: user.id },
     });
@@ -80,20 +287,16 @@ chatRouter.post("/dev-login", async (c) => {
       });
     }
 
-    // 2. Perform direct sign-in via auth.handler to get a cryptographically signed session cookie
-    const signInReq = new Request(
-      `${ENV.BETTER_AUTH_URL}/api/auth/sign-in/email`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password: "SuperPassword123!",
-        }),
+    const signInReq = new Request(`${ENV.BETTER_AUTH_URL}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        email,
+        password: "SuperPassword123!",
+      }),
+    });
 
     const authRes = await auth.handler(signInReq);
     const setCookie = authRes.headers.get("set-cookie");
@@ -102,10 +305,8 @@ chatRouter.post("/dev-login", async (c) => {
       throw new Error("Failed to obtain session cookie from auth handler");
     }
 
-    // 3. Propagate the Set-Cookie header to Hono response
     c.header("Set-Cookie", setCookie);
 
-    // 4. Return success and user info
     const responseBody = await authRes.json();
 
     return c.json({
@@ -113,18 +314,16 @@ chatRouter.post("/dev-login", async (c) => {
       user: responseBody.user,
       token: responseBody.token,
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Authentication failed";
     console.error("Dev login failed:", err);
-    return c.json(
-      { success: false, error: err.message || "Authentication failed" },
-      500,
-    );
+    return c.json({ success: false, error: message }, 500);
   }
 });
 
 chatRouter.get("/courses", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -133,69 +332,170 @@ chatRouter.get("/courses", async (c) => {
       orderBy: { createdAt: "desc" },
     });
     return c.json({ courses });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to fetch courses" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch courses";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Fetch list of documents for a course
 chatRouter.get("/courses/:courseId/documents", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
   const courseId = c.req.param("courseId");
   try {
-    const documents = await DocumentRepository.findManyByCourse(courseId);
+    const documents = await prisma.document.findMany({
+      where: { courseId },
+      orderBy: { createdAt: "desc" },
+    });
     return c.json({ documents });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to fetch documents" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch documents";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Fetch list of chat sessions
+chatRouter.get("/document-catalog", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session?.user) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  try {
+    const documents = await resolveAccessibleChatDocuments(session.user.id);
+    const grouped = new Map<string, DocumentCatalogGroup>();
+
+    for (const document of documents) {
+      const courseId = document.course.id;
+      const existingGroup = grouped.get(courseId);
+      const catalogDocument: DocumentCatalogDocument = {
+        id: document.id,
+        name: document.name,
+        fileType: document.fileType,
+        status: document.status,
+        createdAt: document.createdAt,
+        selectable: document.status === "COMPLETED",
+      };
+
+      if (!existingGroup) {
+        grouped.set(courseId, {
+          course: {
+            id: document.course.id,
+            code: document.course.code,
+            name: document.course.name,
+          },
+          documents: [catalogDocument],
+        });
+        continue;
+      }
+
+      existingGroup.documents.push(catalogDocument);
+    }
+
+    const groups = Array.from(grouped.values()).map((group) => ({
+      ...group,
+      documents: group.documents.sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime()),
+    }));
+
+    return c.json({
+      groups,
+      totalCourses: groups.length,
+      totalDocuments: documents.length,
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch document catalog";
+    return c.json({ error: message }, 500);
+  }
+});
+
 chatRouter.get("/sessions", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
   try {
-    const chatSessions = await ChatRepository.findSessionsByUser(
-      session.user.id,
-    );
-    return c.json({ sessions: chatSessions });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to fetch sessions" }, 500);
+    const chatSessions = await ChatRepository.findSessionsByUser(session.user.id);
+    return c.json({
+      sessions: chatSessions.map((chatSession) => mapSessionForClient(chatSession)),
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch sessions";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Create a new chat session (courseId is optional for global all-courses chat)
 chatRouter.post("/sessions", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
   try {
-    const { courseId } = await c.req.json();
+    const body = (await c.req.json().catch(() => ({}))) as CreateChatSessionPayload;
+    const resolvedPayload = resolveCreateSessionPayload(body);
+
+    if (resolvedPayload.scopeMode === "SELECTED_COURSES" && resolvedPayload.courseIds.length === 0) {
+      return c.json({ error: "At least one course must be selected for SELECTED_COURSES" }, 400);
+    }
+
+    if (resolvedPayload.scopeMode === "SELECTED_DOCUMENTS" && resolvedPayload.documentIds.length === 0) {
+      return c.json({ error: "At least one document must be selected for SELECTED_DOCUMENTS" }, 400);
+    }
+
+    const accessibleCourseIds = new Set(await resolveAccessibleChatCourseIds(session.user.id));
+    const accessibleDocumentIds = new Set(await resolveAccessibleChatDocumentIds(session.user.id));
+
+    if (
+      resolvedPayload.scopeMode === "SELECTED_COURSES" &&
+      resolvedPayload.courseIds.some((courseId) => !accessibleCourseIds.has(courseId))
+    ) {
+      return c.json({ error: "Unauthorized to select one or more courses" }, 403);
+    }
+
+    if (
+      resolvedPayload.scopeMode === "SELECTED_DOCUMENTS" &&
+      resolvedPayload.documentIds.some((documentId) => !accessibleDocumentIds.has(documentId))
+    ) {
+      return c.json({ error: "Unauthorized to select one or more documents" }, 403);
+    }
 
     const chatSession = await ChatRepository.createSession({
       user: { connect: { id: session.user.id } },
-      ...(courseId ? { course: { connect: { id: courseId } } } : {}),
+      scopeMode: resolvedPayload.scopeMode,
+      ...(resolvedPayload.legacyCourseId ? { course: { connect: { id: resolvedPayload.legacyCourseId } } } : {}),
+      ...(resolvedPayload.scopeMode === "SELECTED_COURSES" && resolvedPayload.courseIds.length > 0
+        ? {
+            scopedCourses: {
+              create: resolvedPayload.courseIds.map((courseId) => ({
+                course: { connect: { id: courseId } },
+              })),
+            },
+          }
+        : {}),
+      ...(resolvedPayload.scopeMode === "SELECTED_DOCUMENTS" && resolvedPayload.documentIds.length > 0
+        ? {
+            scopedDocuments: {
+              create: resolvedPayload.documentIds.map((documentId) => ({
+                document: { connect: { id: documentId } },
+              })),
+            },
+          }
+        : {}),
     });
 
     return c.json({ session: chatSession });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to create session" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to create session";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Fetch specific chat session with its messages
 chatRouter.get("/sessions/:sessionId", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -205,61 +505,40 @@ chatRouter.get("/sessions/:sessionId", async (c) => {
     if (!chatSession) {
       return c.json({ error: "Session not found" }, 404);
     }
-    // Verify that session belongs to the user
+
     if (chatSession.userId !== session.user.id) {
       return c.json({ error: "Unauthorized to view this session" }, 403);
     }
 
-    // Lấy danh sách tài liệu: Nếu chat theo môn học thì lấy tài liệu môn đó, nếu chat toàn bộ thì lấy tất cả tài liệu
-    const activeDocs = chatSession.courseId
-      ? await prisma.document.findMany({
-          where: { courseId: chatSession.courseId },
-          select: { id: true }
-        })
-      : await prisma.document.findMany({
-          select: { id: true }
-        });
-    const activeDocIds = new Set(activeDocs.map(d => d.id));
-
-    // Duyệt qua các tin nhắn, nếu citation chứa documentId không nằm trong activeDocIds, đánh dấu isDeleted: true
-    const parsedMessages = chatSession.messages.map(message => {
-      let citations = message.citations as any;
-      if (citations && Array.isArray(citations)) {
-        citations = citations.map((cit: any) => {
-          if (cit.documentId && !activeDocIds.has(cit.documentId)) {
-            return { ...cit, isDeleted: true };
-          }
-          return cit;
-        });
-      }
-      return {
-        ...message,
-        citations
-      };
-    });
+    const scope = await resolveChatScope(chatSession, session.user.id);
+    const activeDocumentIds = await resolveActiveDocumentIds(scope);
+    const parsedMessages = mapMessagesForClient(chatSession.messages, activeDocumentIds);
+    const scopeLabel = buildChatScopeLabel(scope);
 
     return c.json({
       session: {
-        ...chatSession,
-        messages: parsedMessages
-      }
+        ...mapSessionForClient(chatSession),
+        scopeLabel,
+        scopeSummary: scopeLabel,
+        messages: parsedMessages,
+      },
     });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to fetch session" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to fetch session";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Rename chat session
 chatRouter.patch("/sessions/:sessionId", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
   const sessionId = c.req.param("sessionId");
   const { title } = await c.req.json();
 
-  if (!title || typeof title !== "string" || title.trim() === "") {
+  if (!isValidString(title)) {
     return c.json({ error: "Title is required" }, 400);
   }
 
@@ -282,15 +561,15 @@ chatRouter.patch("/sessions/:sessionId", async (c) => {
     });
 
     return c.json({ success: true, session: updated });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to rename session" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to rename session";
+    return c.json({ error: message }, 500);
   }
 });
 
-// Delete chat session
 chatRouter.delete("/sessions/:sessionId", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
@@ -314,47 +593,65 @@ chatRouter.delete("/sessions/:sessionId", async (c) => {
     });
 
     return c.json({ success: true });
-  } catch (err: any) {
-    return c.json({ error: err.message || "Failed to delete session" }, 500);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to delete session";
+    return c.json({ error: message }, 500);
   }
 });
 
 chatRouter.post("/send", async (c) => {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  if (!session || !session.user) {
+  if (!session?.user) {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  // Kiểm tra hạn mức tin nhắn hàng ngày
-  const subscription = await getOrInitializeSubscription(session.user.id);
-  if (subscription.messageCount >= subscription.maxMessages) {
-    return c.json({
-      error: "LIMIT_EXCEEDED",
-      message: "Bạn đã dùng hết giới hạn câu hỏi trong ngày. Hãy nâng cấp gói dịch vụ (Silver/Gold) để tiếp tục hỏi chatbot!"
-    }, 403);
+  const body = await c.req.json().catch(() => ({}));
+  const sessionId = isValidString(body.sessionId) ? body.sessionId : null;
+  const message = isValidString(body.message) ? body.message.trim() : "";
+
+  if (!sessionId || !message) {
+    return c.json({ error: "sessionId and message are required" }, 400);
   }
 
-  const { sessionId, message } = await c.req.json();
   const chatSession = await ChatRepository.findSessionById(sessionId);
-
   if (!chatSession) {
     return c.json({ error: "Chat session not found" }, 404);
   }
 
-  // Chuyển đổi lịch sử chat của phiên cho phù hợp định dạng Gemini
-  const chatHistory = chatSession.messages.map((m) => ({
-    role: m.sender === "USER" ? ("user" as const) : ("model" as const),
-    parts: [m.content],
+  if (chatSession.userId !== session.user.id) {
+    return c.json({ error: "Unauthorized to send message to this session" }, 403);
+  }
+
+  const subscription = await getOrInitializeSubscription(session.user.id);
+  if (subscription.messageCount >= subscription.maxMessages) {
+    const quotaMessage =
+      "Bạn đã hết quota chat của gói hiện tại. Hãy chờ đến khi quota được đặt lại hoặc nâng cấp gói cao hơn để tiếp tục.";
+
+    return streamSSE(c, async (stream) => {
+      await stream.writeSSE({
+        data: JSON.stringify({ chunk: quotaMessage }),
+        event: "message",
+      });
+      await stream.writeSSE({
+        data: JSON.stringify({ citations: [] }),
+        event: "citations",
+      });
+
+      await persistAssistantMessage(sessionId, quotaMessage, []);
+    });
+  }
+
+  const chatHistory = chatSession.messages.map((item) => ({
+    role: item.sender === "USER" ? ("user" as const) : ("model" as const),
+    parts: [item.content],
   }));
 
-  // Lưu tin nhắn của sinh viên vào SQL DB trước
   await ChatRepository.createMessage({
     session: { connect: { id: sessionId } },
     sender: "USER",
     content: message,
   });
 
-  // Tự động tóm tắt làm tiêu đề nếu là tin nhắn đầu tiên của session
   if (chatHistory.length === 0) {
     try {
       const ai = new GoogleGenAI({ apiKey: ENV.GEMINI_API_KEY });
@@ -369,7 +666,7 @@ chatRouter.post("/send", async (c) => {
       });
     } catch (titleError) {
       console.error("Failed to generate session title via AI, fallback to substring:", titleError);
-      const fallbackTitle = message.length > 30 ? message.substring(0, 30) + "..." : message;
+      const fallbackTitle = message.length > 30 ? `${message.substring(0, 30)}...` : message;
       await prisma.chatSession.update({
         where: { id: sessionId },
         data: { title: fallbackTitle },
@@ -377,51 +674,81 @@ chatRouter.post("/send", async (c) => {
     }
   }
 
-  // Trả về stream SSE trực tuyến cho sinh viên
-  return streamSSE(c, async (stream) => {
-    let citationsToSend: any[] = [];
-    let accumulatedAnswer = "";
+  const scope = await resolveChatScope(chatSession, session.user.id);
+  const route = IntentRouterService.route(message, {
+    history: chatSession.messages.map((item) => ({
+      sender: item.sender,
+      content: item.content,
+      citations: item.citations,
+    })),
+  });
 
+  if (route.intent === "RAG_QA" && route.parsedEntities.documentNameQuery) {
+    const candidates = await DocumentMetadataService.resolveDocumentCandidates(
+      scope,
+      route.parsedEntities.documentNameQuery,
+      10,
+    );
+    route.parsedEntities.candidateDocumentIds = candidates.map((candidate: { id: string }) => candidate.id);
+  }
+
+  return streamSSE(c, async (stream) => {
     try {
+      if (route.intent !== "RAG_QA") {
+        const responseText = await DocumentMetadataService.buildMetadataResponse(
+          route,
+          scope,
+          chatSession.messages.map((item) => ({
+            sender: item.sender,
+            content: item.content,
+            citations: item.citations,
+            createdAt: item.createdAt,
+          })),
+        );
+
+        await stream.writeSSE({
+          data: JSON.stringify({ chunk: responseText }),
+          event: "message",
+        });
+        await stream.writeSSE({
+          data: JSON.stringify({ citations: [] }),
+          event: "citations",
+        });
+
+        await persistAssistantMessage(sessionId, responseText, []);
+        await incrementQuota(session.user.id);
+        return;
+      }
+
+      let accumulatedAnswer = "";
       const ragResult = await RagService.retrieveAndGenerate(
         message,
-        chatSession.courseId,
+        scope,
         chatHistory,
         async (chunk) => {
           accumulatedAnswer += chunk;
-          // Stream từng từ về client
           await stream.writeSSE({
             data: JSON.stringify({ chunk }),
             event: "message",
           });
         },
+        {
+          candidateDocumentIds: route.parsedEntities.candidateDocumentIds,
+        },
       );
 
-      citationsToSend = ragResult.citations;
-
-      // Gửi toàn bộ citations và kết thúc stream
       await stream.writeSSE({
-        data: JSON.stringify({ citations: citationsToSend }),
+        data: JSON.stringify({ citations: ragResult.citations }),
         event: "citations",
       });
 
-      // Lưu tin nhắn trợ lý AI kèm citations vào PostgreSQL
-      await ChatRepository.createMessage({
-        session: { connect: { id: sessionId } },
-        sender: "ASSISTANT",
-        content: accumulatedAnswer,
-        citations: citationsToSend as any,
-      });
-
-      // Tăng số lượng tin nhắn đã gửi thành công
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { messageCount: { increment: 1 } }
-      });
-    } catch (err: any) {
+      await persistAssistantMessage(sessionId, accumulatedAnswer || ragResult.fullAnswer, ragResult.citations as unknown[]);
+      await incrementQuota(session.user.id);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Lỗi xử lý AI RAG";
       console.error("[Chat Stream Error]:", err);
       await stream.writeSSE({
-        data: JSON.stringify({ error: err.message || "Lỗi xử lý AI RAG" }),
+        data: JSON.stringify({ error: message }),
         event: "error",
       });
     }

@@ -3,6 +3,7 @@ import { authApi } from "../api/auth";
 import { coursesApi } from "../api/courses";
 import { documentsApi } from "../api/documents";
 import { chatApi, streamChat as realStreamChat } from "../api/chat";
+import { subscriptionsApi } from "../api/subscriptions";
 
 export const API_BASE_URL = "http://localhost:8000";
 
@@ -38,6 +39,11 @@ export const api = {
         return documentsApi.getDocuments(courseId);
     },
 
+    // 5. Lấy catalog tài liệu để chọn scope chat
+    getDocumentCatalog: async () => {
+        return chatApi.getDocumentCatalog();
+    },
+
     // 6. Nạp tài liệu mới thật qua multipart FormData
     uploadDocument: async (courseId: string, file: File) => {
         return documentsApi.uploadDocument(courseId, file);
@@ -54,13 +60,23 @@ export const api = {
     },
 
     // 9. Tạo phòng chat mới
-    createChatSession: async (courseId?: string) => {
-        return chatApi.createChatSession(courseId);
+    createChatSession: async (payload?: { scopeMode?: 'ALL_COURSES' | 'SELECTED_COURSES' | 'SELECTED_DOCUMENTS'; courseIds?: string[]; courseId?: string | null; documentIds?: string[]; }) => {
+        return chatApi.createChatSession(payload ?? {});
     },
 
     // 10. Lấy chi tiết lịch sử tin nhắn trong phòng chat thật
     getChatSessionDetails: async (sessionId: string) => {
         return chatApi.getChatSessionDetails(sessionId);
+    },
+
+    // 11. Lấy gói cước hiện tại của người dùng
+    getSubscription: async () => {
+        return subscriptionsApi.getMe();
+    },
+
+    // 12. Yêu cầu nâng cấp gói cước
+    upgradeSubscription: async (tier: 'SILVER' | 'GOLD') => {
+        return subscriptionsApi.upgrade(tier);
     },
 };
 
