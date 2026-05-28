@@ -1,0 +1,96 @@
+# ============================================================
+# Production Management Makefile (Run on VPS)
+# ============================================================
+# This Makefile manages pre-built Docker Hub images.
+# No building from source code happens on the VPS.
+#
+# Assumptions:
+#   1. docker-compose.prod.yml is in the same directory.
+#   2. A valid .env file is in the same directory.
+# ============================================================
+
+.PHONY: help up down pull restart status logs logs-api logs-worker logs-db deploy-api deploy-worker db-sync db-shell clean
+
+COMPOSE_CMD = docker compose -f docker-compose.prod.yml
+
+# Default target: show list of commands
+help:
+	@echo "============================================================"
+	@echo "          Production Control Commands for VPS"
+	@echo "============================================================"
+	@echo "  make up             - Start all services in background"
+	@echo "  make down           - Stop and remove all containers"
+	@echo "  make pull           - Pull latest images from Docker Hub"
+	@echo "  make restart        - Restart entire stack (pulls new images first)"
+	@echo "  make deploy-api     - Deploy ONLY Hono API (pull & recreate Hono)"
+	@echo "  make deploy-worker  - Deploy ONLY Ingestion Worker (pull & recreate Worker)"
+	@echo "  make status         - Check current container statuses"
+	@echo "  make logs           - Stream logs from all containers"
+	@echo "  make logs-api       - Stream logs from Hono API container"
+	@echo "  make logs-worker    - Stream logs from Golang Worker container"
+	@echo "  make logs-db        - Stream logs from Postgres database"
+	@echo "  make db-sync        - Manually force sync Prisma schema to Postgres"
+	@echo "  make db-shell       - Open an interactive psql shell in Postgres container"
+	@echo "  make clean          - Remove orphaned containers, networks, and cache"
+	@echo "============================================================"
+
+# Start all services
+up:
+	$(COMPOSE_CMD) up -d
+
+# Stop all services
+down:
+	$(COMPOSE_CMD) down
+
+# Pull latest images from Docker Hub
+pull:
+	$(COMPOSE_CMD) pull
+
+# Pull latest images and restart container stack
+restart: pull
+	$(COMPOSE_CMD) down
+	$(COMPOSE_CMD) up -d
+
+# Pull and deploy ONLY the Hono.js API backend (without restarting postgres/redis)
+deploy-api:
+	$(COMPOSE_CMD) pull api
+	$(COMPOSE_CMD) up -d --no-deps api
+
+# Pull and deploy ONLY the Golang Ingestion Worker (without restarting postgres/redis)
+deploy-worker:
+	$(COMPOSE_CMD) pull ingestion-worker
+	$(COMPOSE_CMD) up -d --no-deps ingestion-worker
+
+# View status of services
+status:
+	$(COMPOSE_CMD) ps
+
+# View logs from all services
+logs:
+	$(COMPOSE_CMD) logs -f
+
+# View logs of API Hono service
+logs-api:
+	$(COMPOSE_CMD) logs -f api
+
+# View logs of Golang Ingestion Worker service
+logs-worker:
+	$(COMPOSE_CMD) logs -f ingestion-worker
+
+# View logs of Postgres Database service
+logs-db:
+	$(COMPOSE_CMD) logs -f db
+
+# Force manual schema sync via Prisma db push on the running API container
+db-sync:
+	$(COMPOSE_CMD) exec api npx prisma db push
+
+# Open an interactive PostgreSQL psql shell
+db-shell:
+	@echo "Connecting to database..."
+	$(COMPOSE_CMD) exec db psql -U admin -d chatbot_rag_fptu
+
+# Clean system pruning unused docker elements
+clean:
+	docker system prune -f
+	docker image prune -f

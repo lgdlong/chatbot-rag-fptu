@@ -1,0 +1,188 @@
+# ============================================================
+# Production Docker Compose Deployment
+# ============================================================
+# Uses Traefik reverse proxy over the pre-existing 'net-proxy' VPS network.
+# Serves the Hono.js API backend on 'api-swd.lgdlong.site'.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml up -d
+# ============================================================
+
+name: chatbot-rag-production
+
+services:
+  # ============================================
+  # PostgreSQL Database (with pgvector support)
+  # ============================================
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: chatbot-rag-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+
+  # ============================================
+  # Redis Queue
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot-rag-redis
+    restart: unless-stopped
+    volumes:
+      - redis_prod_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # ============================================
+  # Hono.js API Backend
+  # ============================================
+  api:
+    image: lgdlong/chatbot-swd-api:latest
+    pull_policy: always
+    container_name: chatbot-rag-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      DATABASE_URL: 'postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable'
+      REDIS_HOST: redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - shared_uploads:/app/uploads
+    networks:
+      - app-network
+      - net-proxy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      # Enable Traefik for this container
+      - 'traefik.enable=true'
+      # Specify which Traefik network to use
+      - 'traefik.docker.network=net-proxy'
+      
+      # 1. HTTP Entrypoint -> Redirect to HTTPS
+      - 'traefik.http.routers.chatbot-api-web.entrypoints=web'
+      - 'traefik.http.routers.chatbot-api-web.rule=Host(`api-swd.lgdlong.site`)'
+      - 'traefik.http.routers.chatbot-api-web.middlewares=https-redirect'
+      
+      # 2. HTTPS Entrypoint
+      - 'traefik.http.routers.chatbot-api.entrypoints=websecure'
+      - 'traefik.http.routers.chatbot-api.rule=Host(`api-swd.lgdlong.site`)'
+      - 'traefik.http.routers.chatbot-api.tls=true'
+      - 'traefik.http.routers.chatbot-api.tls.certresolver=myresolver'
+      
+      # Loadbalancer routing internally to Hono Port 8000
+      - 'traefik.http.services.chatbot-api.loadbalancer.server.port=8000'
+      
+      # Middlewares Configuration
+      - 'traefik.http.middlewares.https-redirect.redirectscheme.scheme=https'
+      - 'traefik.http.middlewares.compress.compress=true'
+      
+      # Security Headers Middleware
+      - 'traefik.http.middlewares.security-headers.headers.browserXssFilter=true'
+      - 'traefik.http.middlewares.security-headers.headers.contentTypeNosniff=true'
+      - 'traefik.http.middlewares.security-headers.headers.frameDeny=true'
+      - 'traefik.http.middlewares.security-headers.headers.referrerPolicy=strict-origin-when-cross-origin'
+      
+      # Apply middlewares to HTTPS router
+      - 'traefik.http.routers.chatbot-api.middlewares=compress,security-headers'
+
+  # ============================================
+  # Golang Ingestion Worker (Background Process)
+  # ============================================
+  ingestion-worker:
+    image: lgdlong/chatbot-swd-worker:latest
+    pull_policy: always
+    container_name: chatbot-rag-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      DATABASE_URL: 'postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable'
+      INTERNAL_API_URL: 'http://api:8000'
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - shared_uploads:/app/uploads
+    networks:
+      - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+# ============================================================
+# Named Volumes & Networks
+# ============================================================
+volumes:
+  postgres_prod_data:
+    driver: local
+  redis_prod_data:
+    driver: local
+  shared_uploads:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+  net-proxy:
+    external: true

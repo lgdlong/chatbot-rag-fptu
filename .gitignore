@@ -174,4 +174,5 @@ services/ingestion-worker/*.exe
 *.pdf
 .vscode
 .claude
+mantine-docs.txt
 

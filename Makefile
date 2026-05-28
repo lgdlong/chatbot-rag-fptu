@@ -77,3 +77,14 @@ clean:
 # Health Check
 health-check:
 	npx tsx --env-file=.env -e "import('./api/src/index.ts').then(m => m.app.request('/api/health').then(r => r.json().then(j => console.log('Response Status:', r.status, '\nResponse Body:\n', JSON.stringify(j, null, 2)))))"
+
+# Docker Build & Push Targets (Production)
+docker-build:
+	docker build -t lgdlong/chatbot-swd-api:latest ./api
+	docker build -t lgdlong/chatbot-swd-worker:latest ./services/ingestion-worker
+
+docker-push:
+	docker push lgdlong/chatbot-swd-api:latest
+	docker push lgdlong/chatbot-swd-worker:latest
+
+docker-all: docker-build docker-push
