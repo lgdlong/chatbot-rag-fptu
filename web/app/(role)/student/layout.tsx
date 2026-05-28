@@ -6,6 +6,7 @@ import { ChatSidebar } from '@/components/features/chat/ChatSidebar';
 import { LogOut } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { Suspense } from 'react';
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
     const [opened, { toggle }] = useDisclosure();
@@ -33,7 +34,13 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 </Group>
             </AppShell.Header>
 
-            <ChatSidebar />
+            <Suspense fallback={
+                <AppShell.Navbar p="md" display="flex" style={{ flexDirection: 'column' }}>
+                    <div style={{ flex: 1 }} />
+                </AppShell.Navbar>
+            }>
+                <ChatSidebar />
+            </Suspense>
 
             <AppShell.Main bg="zinc.950">
                 {children}

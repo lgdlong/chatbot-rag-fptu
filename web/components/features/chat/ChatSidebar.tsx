@@ -1,7 +1,8 @@
 'use client';
 
-import { AppShell, Box, NavLink, Text, Progress, Group, Badge } from '@mantine/core';
-import { IconMessage, IconPlus } from '@tabler/icons-react';
+import { AppShell, Box, NavLink, Text, Progress, Group, Badge, Button, Stack } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { IconMessage, IconPlus, IconCreditCard, IconInfoCircle } from '@tabler/icons-react';
 import { MOCK_SESSIONS, MOCK_SUBSCRIPTION } from '@/lib/mock';
 import { useSearchParams } from 'next/navigation';
 import Link from "next/link";
@@ -11,6 +12,17 @@ export function ChatSidebar() {
     const currentSessionId = searchParams.get('sessionId');
 
     const usagePercent = (MOCK_SUBSCRIPTION.messageCount / MOCK_SUBSCRIPTION.maxMessages) * 100;
+
+    const handleUpgrade = () => {
+        notifications.show({
+            position: 'top-right',
+            color: 'blue',
+            icon: <IconInfoCircle size="1rem" />,
+            title: 'Tính năng đang phát triển',
+            message: 'Chức năng thanh toán đang được phát triển, hiện chưa thể sử dụng.',
+            autoClose: 4000,
+        });
+    };
 
     return (
         <AppShell.Navbar p="md" display="flex" style={{ flexDirection: 'column' }}>
@@ -59,6 +71,26 @@ export function ChatSidebar() {
                     </Badge>
                     <Text size="xs" c="dimmed">Gia hạn: {new Date(MOCK_SUBSCRIPTION.endDate).toLocaleDateString('vi-VN')}</Text>
                 </Group>
+                <Stack gap="xs" mt="md">
+                    <Button
+                        leftSection={<IconCreditCard size="1rem" stroke={1.5} />}
+                        color="brandBlue"
+                        variant="filled"
+                        radius="xs"
+                        onClick={handleUpgrade}
+                    >
+                        Thanh toán SePay Silver
+                    </Button>
+                    <Button
+                        leftSection={<IconCreditCard size="1rem" stroke={1.5} />}
+                        color="brandGold.5"
+                        variant="light"
+                        radius="xs"
+                        onClick={handleUpgrade}
+                    >
+                        Thanh toán SePay Gold
+                    </Button>
+                </Stack>
             </Box>
         </AppShell.Navbar>
     );
