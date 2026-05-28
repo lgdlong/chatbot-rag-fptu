@@ -11,6 +11,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -34,7 +35,7 @@ var ctx = context.Background()
 func main() {
 	redisHost := getEnv("REDIS_HOST", "localhost")
 	redisPort := getEnv("REDIS_PORT", "6379")
-	dbUrl := getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/chatbot_rag?sslmode=disable")
+	dbUrl := normalizePostgresURL(getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/chatbot_rag?sslmode=disable"))
 
 	// 1. Kết nối Redis
 	rdb := redis.NewClient(&redis.Options{
@@ -75,7 +76,7 @@ func main() {
 		}
 
 		log.Printf("[Worker] Start processing document: %s (%s)", payload.DocumentName, payload.DocumentId)
-		
+
 		// Kích hoạt webhook báo trạng thái: PROCESSING
 		updateDocumentStatus(payload.DocumentId, "PROCESSING", "")
 
@@ -125,7 +126,7 @@ func processDocument(payload JobPayload, db *sql.DB) error {
 	// Quét các file PDF trang đơn đã được tạo
 	baseName := filepath.Base(filePath)
 	baseNameWithoutExt := baseName[:len(baseName)-len(filepath.Ext(baseName))]
-	
+
 	pageNumber := 1
 	for {
 		expectedChunkPath := filepath.Join(chunksDir, fmt.Sprintf("%s_%d.pdf", baseNameWithoutExt, pageNumber))
@@ -272,7 +273,7 @@ func updateDocumentStatus(docId string, status string, errorMessage string) {
 	internalKey := os.Getenv("INTERNAL_API_KEY")
 
 	url := fmt.Sprintf("%s/api/internal/documents/%s", apiURL, docId)
-	
+
 	payload := map[string]string{
 		"status": status,
 		"error":  errorMessage,
@@ -305,4 +306,24 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func normalizePostgresURL(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return raw
+	}
+
+	if parsed.Scheme != "postgres" && parsed.Scheme != "postgresql" {
+		return raw
+	}
+
+	query := parsed.Query()
+	query.Del("schema")
+	if query.Get("sslmode") == "" {
+		query.Set("sslmode", "disable")
+	}
+	parsed.RawQuery = query.Encode()
+
+	return parsed.String()
 }

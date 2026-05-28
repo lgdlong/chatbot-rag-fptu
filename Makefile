@@ -43,11 +43,11 @@ dev-all:
 	@echo "Starting API, Web, and Worker..."
 	@npm --prefix api run dev & \
 	npm --prefix web run dev & \
-	cd services/ingestion-worker && go run main.go
+	powershell -NoProfile -ExecutionPolicy Bypass -File services/ingestion-worker/run.ps1
 
 # Ingestion Worker
 worker:
-	cd services/ingestion-worker && go run main.go
+	powershell -NoProfile -ExecutionPolicy Bypass -File services/ingestion-worker/run.ps1
 
 # Build Commands
 build-api:

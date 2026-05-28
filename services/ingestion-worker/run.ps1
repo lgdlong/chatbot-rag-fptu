@@ -1,5 +1,9 @@
 # Tự động nạp các biến môi trường từ file .env ở gốc dự án và khởi chạy Go Ingestion Worker
-Get-Content ../../.env | ForEach-Object {
+$workerRoot = $PSScriptRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $workerRoot)
+$envFile = Join-Path $projectRoot ".env"
+
+Get-Content $envFile | ForEach-Object {
     $line = $_.Trim()
     if ($line -and -not $line.StartsWith("#")) {
         if ($line -match "^([^=]+)=(.*)$") {
@@ -10,4 +14,9 @@ Get-Content ../../.env | ForEach-Object {
     }
 }
 Write-Host "[Powershell] Đã nạp thành công biến môi trường từ file .env gốc."
-go run main.go
+Push-Location $workerRoot
+try {
+    go run main.go
+} finally {
+    Pop-Location
+}
