@@ -1,4 +1,6 @@
+// DEPRECATED: File này nên được xóa và không được sử dụng nữa vì hệ thống đã chuyển sang tích hợp trực tiếp AnythingLLM RAG.
 import { prisma } from "../../auth/services/db.service.js";
+
 import { ChatSessionScopeMode } from "@prisma/client";
 import type { ResolvedChatScope, ScopedCourse, ScopedDocument } from "./chat-scope.service.js";
 import type { IntentRoute } from "./intent-router.service.js";

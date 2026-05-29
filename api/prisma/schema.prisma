@@ -216,6 +216,7 @@ model DocumentChunk {
   document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
   content    String   @db.Text
   pageNumber Int      @map("page_number")
+  metadata   Json?    @map("metadata")
   embedding  Unsupported("vector(3072)")?
 
   @@map("document_chunks")

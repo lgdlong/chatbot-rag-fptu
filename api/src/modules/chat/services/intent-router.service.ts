@@ -1,4 +1,6 @@
+// DEPRECATED: File này nên được xóa và không được sử dụng nữa vì hệ thống đã chuyển sang tích hợp trực tiếp AnythingLLM RAG.
 export type ChatIntent =
+
   | "SESSION_SCOPE_CHANGE"
   | "SESSION_SCOPE_SHOW"
   | "DOCUMENT_STATUS"

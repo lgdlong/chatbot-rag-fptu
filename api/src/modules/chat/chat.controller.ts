@@ -11,7 +11,6 @@ import {
   getOrInitializeSubscription,
 } from "../subscriptions/subscription.service.js";
 import { ChatRepository } from "./repositories/chat.repository.js";
-import { DocumentMetadataService } from "./services/document-metadata.service.js";
 import {
   buildChatScopeLabel,
   resolveAccessibleChatDocuments,
@@ -19,7 +18,6 @@ import {
   resolveAccessibleChatDocumentIds,
   resolveChatScope,
 } from "./services/chat-scope.service.js";
-import { IntentRouterService } from "./services/intent-router.service.js";
 
 export const chatRouter = new Hono();
 
@@ -675,51 +673,9 @@ chatRouter.post("/send", async (c) => {
   }
 
   const scope = await resolveChatScope(chatSession, session.user.id);
-  const route = IntentRouterService.route(message, {
-    history: chatSession.messages.map((item) => ({
-      sender: item.sender,
-      content: item.content,
-      citations: item.citations,
-    })),
-  });
-
-  if (route.intent === "RAG_QA" && route.parsedEntities.documentNameQuery) {
-    const candidates = await DocumentMetadataService.resolveDocumentCandidates(
-      scope,
-      route.parsedEntities.documentNameQuery,
-      10,
-    );
-    route.parsedEntities.candidateDocumentIds = candidates.map((candidate: { id: string }) => candidate.id);
-  }
 
   return streamSSE(c, async (stream) => {
     try {
-      if (route.intent !== "RAG_QA") {
-        const responseText = await DocumentMetadataService.buildMetadataResponse(
-          route,
-          scope,
-          chatSession.messages.map((item) => ({
-            sender: item.sender,
-            content: item.content,
-            citations: item.citations,
-            createdAt: item.createdAt,
-          })),
-        );
-
-        await stream.writeSSE({
-          data: JSON.stringify({ chunk: responseText }),
-          event: "message",
-        });
-        await stream.writeSSE({
-          data: JSON.stringify({ citations: [] }),
-          event: "citations",
-        });
-
-        await persistAssistantMessage(sessionId, responseText, []);
-        await incrementQuota(session.user.id);
-        return;
-      }
-
       let accumulatedAnswer = "";
       const ragResult = await RagService.retrieveAndGenerate(
         message,
@@ -731,9 +687,6 @@ chatRouter.post("/send", async (c) => {
             data: JSON.stringify({ chunk }),
             event: "message",
           });
-        },
-        {
-          candidateDocumentIds: route.parsedEntities.candidateDocumentIds,
         },
       );
 

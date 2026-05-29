@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, appendFile } from "node:fs/promises";
 import { Prisma } from "@prisma/client";
 import { GeminiService } from "./gemini.service.js";
 import { prisma } from "../../auth/services/db.service.js";
@@ -154,10 +154,15 @@ async function runVectorSearch(
   queryVector: number[],
   scope: ResolvedChatScope,
   candidateDocumentIds: string[],
+  metadataFilter?: { chapter?: string | null },
 ) {
   const vectorString = toSafeVectorLiteral(queryVector);
   const scopeFilter = buildScopeFilter(scope);
   const candidateFilter = buildCandidateFilter(scope, candidateDocumentIds);
+
+  const chapterFilter = metadataFilter?.chapter 
+    ? Prisma.sql`AND (dc.metadata->>'chapter') = ${metadataFilter.chapter}` 
+    : Prisma.empty;
 
   return prisma.$queryRaw<RagSearchResult[]>(Prisma.sql`
     SELECT
@@ -172,6 +177,7 @@ async function runVectorSearch(
     WHERE d.status = 'COMPLETED'
       ${scopeFilter}
       ${candidateFilter}
+      ${chapterFilter}
       AND d.file_type IN ('pdf', 'docx', 'pptx')
       AND (dc.embedding <=> ${vectorString}::vector) <= ${ENV.RAG_MAX_DISTANCE}
     ORDER BY distance ASC
@@ -233,67 +239,153 @@ export class RagService {
     onChunk: (text: string) => void,
     options: { candidateDocumentIds?: string[] } = {},
   ) {
-    if (scope.courseIds.length === 0 && scope.documentIds.length === 0) {
-      const reply = buildNoContextReply(scope);
-      onChunk(reply);
-      return {
-        citations: [],
-        fullAnswer: reply,
-      };
+    const logFile = "logs/a.log";
+    const writeLog = async (text: string) => {
+      try {
+        const time = new Date().toISOString();
+        await appendFile(logFile, `[${time}] ${text}\n`);
+      } catch (err) {
+        // ignore log write errors
+      }
+    };
+
+    // Determine workspace slug from course code (e.g., swd392) or default
+    const workspaceSlug = scope.scopedCourses.length > 0 
+      ? scope.scopedCourses[0].code.toLowerCase() 
+      : "default";
+
+    await writeLog(`[RAG] Proxying chat to AnythingLLM workspace slug: "${workspaceSlug}"`);
+
+    if (!ENV.ANYTHING_LLM_API_KEY) {
+       const reply = "AnythingLLM API Key chưa được cấu hình. Vui lòng thêm ANYTHING_LLM_API_KEY vào biến môi trường.";
+       onChunk(reply);
+       return { citations: [], fullAnswer: reply };
     }
 
-    const queryPrompt = `task: question answering | query: ${query}`;
-    const queryVector = await GeminiService.generateEmbedding(queryPrompt);
-    const candidateDocumentIds = options.candidateDocumentIds?.filter(Boolean) ?? [];
+    try {
+      const response = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/${workspaceSlug}/stream-chat`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: query,
+          mode: "chat"
+        })
+      });
 
-    const primarySearchResults = await runVectorSearch(queryVector, scope, candidateDocumentIds);
-    let contextBundle = await loadChunkContext(primarySearchResults);
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => "N/A");
+        await writeLog(`AnythingLLM error: ${response.status} ${response.statusText}. Chi tiết: ${errorBody}`);
+        const reply = "Rất tiếc, máy chủ RAG đang gặp sự cố. Vui lòng thử lại sau.";
+        onChunk(reply);
+        return { citations: [], fullAnswer: reply };
+      }
 
-    if (contextBundle.contextParts.length === 0) {
-      const rescueSearchResults = await runLexicalRescueSearch(query, scope, candidateDocumentIds);
-      const rescueBundle = await loadChunkContext(rescueSearchResults);
-      if (rescueBundle.contextParts.length > 0) {
-        const merged = new Map<string, RagSearchResult>();
-        for (const row of [...primarySearchResults, ...rescueSearchResults]) {
-          const key = `${row.document_id}:${row.page_number}`;
-          if (!merged.has(key)) {
-            merged.set(key, row);
+      let fullAnswer = "";
+      let rawSources: any[] = [];
+
+      if (response.body) {
+        const decoder = new TextDecoder("utf-8");
+        await writeLog("Khởi đầu nhận Stream từ AnythingLLM...");
+        
+        for await (const chunk of response.body as any) {
+          // Decode the Uint8Array chunk properly to UTF-8 text
+          const chunkText = decoder.decode(chunk, { stream: true });
+          await writeLog(`RAW CHUNK NHẬN ĐƯỢC:\n${chunkText}`);
+          
+          const lines = chunkText.split("\n");
+          for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+            
+            await writeLog(`XỬ LÝ DÒNG: ${trimmedLine}`);
+            if (trimmedLine.startsWith("data: ")) {
+              const dataStr = trimmedLine.slice(6).trim();
+              await writeLog(`NỘI DUNG DATA TRÍCH XUẤT: ${dataStr}`);
+              
+              if (dataStr === "[DONE]") {
+                await writeLog("STREAM KẾT THÚC ([DONE])");
+                continue;
+              }
+              try {
+                const data = JSON.parse(dataStr);
+                await writeLog(`PARSED JSON OK: ${JSON.stringify(data)}`);
+                if (data.textResponse) {
+                  await writeLog(`THẤY TEXT RESPONSE: ${data.textResponse}`);
+                  fullAnswer += data.textResponse;
+                  onChunk(data.textResponse);
+                } else if (data.sources && Array.isArray(data.sources)) {
+                  await writeLog(`THẤY SOURCES: ${JSON.stringify(data.sources)}`);
+                  rawSources = data.sources;
+                } else {
+                  await writeLog("Không tìm thấy field 'textResponse' hay 'sources' trong JSON.");
+                }
+              } catch (e) {
+                await writeLog(`LỖI PARSE JSON DÒNG NÀY: ${e instanceof Error ? e.message : String(e)}`);
+              }
+            }
           }
         }
-        contextBundle = await loadChunkContext(Array.from(merged.values()));
+      } else {
+        await writeLog("Response body bị rỗng!");
       }
-    }
 
-    if (contextBundle.contextParts.length === 0) {
-      const reply = buildNoContextReply(scope);
-      onChunk(reply);
+      const citations: any[] = [];
+      const seenDocIds = new Set<string>();
+
+      if (rawSources.length > 0) {
+        for (const source of rawSources) {
+          const title = source.title;
+          if (!title) continue;
+
+          // Find the matching document in Postgres
+          const dbDoc = await prisma.document.findFirst({
+            where: {
+              name: {
+                equals: title,
+                mode: "insensitive"
+              }
+            },
+            select: { id: true, name: true, fileUrl: true }
+          });
+
+          const docId = dbDoc ? dbDoc.id : (source.id || "unknown");
+          if (seenDocIds.has(docId)) {
+            continue;
+          }
+          seenDocIds.add(docId);
+
+          if (dbDoc) {
+            citations.push({
+              documentId: dbDoc.id,
+              documentName: dbDoc.name,
+              fileUrl: dbDoc.fileUrl,
+              page: 1
+            });
+          } else {
+            citations.push({
+              documentId: source.id || "unknown",
+              documentName: title,
+              fileUrl: null,
+              page: 1
+            });
+          }
+        }
+      }
+
+      await writeLog(`TRẢ VỀ CITATIONS MAPPED: ${JSON.stringify(citations)}`);
+
       return {
-        citations: [],
-        fullAnswer: reply,
+        citations, 
+        fullAnswer,
       };
+    } catch (error) {
+      await writeLog(`Failed to call AnythingLLM: ${error instanceof Error ? error.message : String(error)}`);
+      const reply = "Rất tiếc, không thể kết nối tới AnythingLLM.";
+      onChunk(reply);
+      return { citations: [], fullAnswer: reply };
     }
-
-    const systemPrompt = `Bạn là trợ lý giảng dạy AI thông minh của Đại học FPT (FPTU).
-Nhiệm vụ của bạn là giải đáp thắc mắc môn học dựa TRÊN các Tài liệu đính kèm (dưới dạng file PDF/Hình ảnh).
-
-HƯỚNG DẪN TRẢ LỜI:
-1. Chỉ trả lời dựa trên các tài liệu đã được đính kèm trong phần Nguồn ở bên dưới.
-2. Không được suy đoán, bịa thêm, hoặc dùng kiến thức bên ngoài tài liệu.
-3. Nếu tài liệu không chứa thông tin cần thiết để trả lời, hãy trả lời đúng một câu: "Mình không biết. Hiện tại mình chưa tìm thấy nội dung phù hợp trong tài liệu đã được giảng viên cung cấp."
-4. Trả lời bằng tiếng Việt dễ hiểu, logic. Khi trích dẫn thông tin, hãy ghi rõ nguồn (VD: Slide_Chuong_1.pdf - trang 12).
-5. TUYỆT ĐỐI KHÔNG sử dụng định dạng markdown (KHÔNG dùng **, ##, *, -, >, v.v). Chỉ dùng văn bản thuần túy (plain text).`;
-
-    const fullAnswer = await GeminiService.generateChatStream(
-      systemPrompt,
-      chatHistory,
-      query,
-      contextBundle.contextParts,
-      onChunk,
-    );
-
-    return {
-      citations: contextBundle.citations,
-      fullAnswer,
-    };
   }
 }

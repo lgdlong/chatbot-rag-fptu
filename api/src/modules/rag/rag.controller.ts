@@ -1,7 +1,6 @@
 import { Hono, type Context } from "hono";
 import { writeFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
-import { Redis as RedisClient } from "ioredis";
 import { DocumentRepository } from "../documents/repositories/document.repository.js";
 import { auth } from "../auth/auth.js";
 import { prisma } from "../auth/services/db.service.js";
@@ -135,6 +134,44 @@ ragRouter.post("/", async (c) => {
       },
     });
 
+    // Sync create workspace with AnythingLLM
+    try {
+      console.log(`[Creation] Syncing Course Creation: Ensuring AnythingLLM workspace exists for: "${code}"`);
+      const listResponse = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspaces`, {
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`
+        }
+      });
+      let exists = false;
+      const workspaceSlug = code.toLowerCase();
+      if (listResponse.ok) {
+        const listResult = await listResponse.json();
+        const workspaces = listResult.workspaces || [];
+        exists = workspaces.some((ws: any) => ws.slug === workspaceSlug);
+      }
+
+      if (!exists) {
+        const response = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/new`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ name: code })
+        });
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => "N/A");
+          console.warn(`[Creation] AnythingLLM workspace creation warning: ${response.status} ${response.statusText}. Chi tiết: ${errorBody}`);
+        } else {
+          console.log(`[Creation] Successfully created AnythingLLM workspace for: "${code}"`);
+        }
+      } else {
+        console.log(`[Creation] AnythingLLM workspace "${workspaceSlug}" already exists. Skipping creation to avoid duplicates.`);
+      }
+    } catch (wsError) {
+      console.error("[Creation] Failed to sync workspace creation with AnythingLLM:", wsError);
+    }
+
     return c.json(
       {
         course: {
@@ -172,12 +209,14 @@ ragRouter.patch("/:courseId", async (c) => {
 
     const existingCourse = await prisma.course.findUnique({
       where: { id: courseId },
-      select: { id: true },
+      select: { id: true, code: true },
     });
 
     if (!existingCourse) {
       return c.json({ error: "Course not found" }, 404);
     }
+
+    const oldCode = existingCourse.code;
 
     const duplicateCourse = await prisma.course.findFirst({
       where: {
@@ -210,6 +249,51 @@ ragRouter.patch("/:courseId", async (c) => {
         },
       },
     });
+
+    // Sync rename workspace with AnythingLLM if code changed
+    const codeChanged = oldCode.toUpperCase() !== code.toUpperCase();
+    if (codeChanged) {
+      const oldSlug = oldCode.toLowerCase();
+      const newSlug = code.toLowerCase();
+      const newName = code.toUpperCase();
+
+      try {
+        console.log(`[Update] Syncing Course Code Change: Renaming AnythingLLM workspace "${oldSlug}" to name "${newName}", slug "${newSlug}"...`);
+        const response = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/${oldSlug}/update`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            name: newName,
+            slug: newSlug
+          })
+        });
+
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => "N/A");
+          console.warn(`[Update] Failed to rename workspace: ${response.status} ${response.statusText}. Chi tiết: ${errorBody}`);
+          
+          // Fallback: If update failed (e.g. workspace didn't exist in AnythingLLM), ensure it is created now!
+          console.log(`[Update Fallback] Ensuring new AnythingLLM workspace exists for "${newName}"...`);
+          await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/new`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ name: newName })
+          }).catch((e) => {
+            console.warn("[Update Fallback] Failed to create workspace on update fallback:", e);
+          });
+        } else {
+          console.log(`[Update] Successfully renamed AnythingLLM workspace to slug "${newSlug}"`);
+        }
+      } catch (wsError) {
+        console.error("[Update] Failed to sync workspace renaming with AnythingLLM:", wsError);
+      }
+    }
 
     return c.json({
       course: {
@@ -265,6 +349,20 @@ ragRouter.delete("/:courseId", async (c) => {
     await prisma.course.delete({
       where: { id: courseId },
     });
+
+    // Sync delete workspace with AnythingLLM
+    try {
+      const workspaceSlug = course.code.toLowerCase();
+      console.log(`[Deletion] Syncing Course Deletion: Purging AnythingLLM workspace "${workspaceSlug}"...`);
+      await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/${workspaceSlug}`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`
+        }
+      });
+    } catch (wsError) {
+      console.error("[Deletion] Failed to delete AnythingLLM workspace:", wsError);
+    }
 
     return c.json({ success: true });
   } catch (err: unknown) {
@@ -343,25 +441,114 @@ ragRouter.post("/:courseId/documents", async (c) => {
     course: { connect: { id: courseId } },
   });
 
-  // 2. Chạy tiến trình đẩy Job vào Redis Queue bằng Redis LPUSH (Non-blocking)
-  const redisClient = new RedisClient({ host: ENV.REDIS_HOST, port: 6379 });
+  // Start background non-blocking ingestion task calling AnythingLLM API
+  Promise.resolve().then(async () => {
+    try {
+      // 1. Fetch course details
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { code: true }
+      });
+      if (!course) throw new Error("Course not found in database");
+      
+      const workspaceSlug = course.code.toLowerCase();
 
-  const jobPayload = {
-    documentId: doc.id,
-    organizationId: "org-default", // Truyền giá trị cố định để tương thích với Go worker payload struct
-    courseId,
-    filePath: `.${filePath}`,
-    documentName: doc.name,
-  };
+      // 2. Auto-create workspace in AnythingLLM (will check first if already exists to prevent duplicates)
+      console.log(`[Ingestion] Ensuring AnythingLLM workspace exists for: "${course.code}"`);
+      try {
+        const listResponse = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspaces`, {
+          headers: {
+            "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`
+          }
+        });
+        let exists = false;
+        if (listResponse.ok) {
+          const listResult = await listResponse.json();
+          const workspaces = listResult.workspaces || [];
+          exists = workspaces.some((ws: any) => ws.slug === workspaceSlug);
+        }
 
-  try {
-    await redisClient.lpush("rag:ingestion:queue", JSON.stringify(jobPayload));
-  } catch (error) {
-    console.error("[RagController] Redis enqueue error:", error);
-    return c.json({ error: "Failed to queue ingestion job" }, 500);
-  } finally {
-    await redisClient.quit();
-  }
+        if (!exists) {
+          console.log(`[Ingestion] Workspace "${workspaceSlug}" not found. Creating workspace...`);
+          const createResponse = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/new`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ name: course.code.toUpperCase() })
+          });
+          if (!createResponse.ok) {
+            const errorText = await createResponse.text().catch(() => "N/A");
+            console.warn(`[Ingestion] Workspace creation failed: ${createResponse.status}. Chi tiết: ${errorText}`);
+          } else {
+            console.log(`[Ingestion] Successfully created AnythingLLM workspace for: "${course.code}"`);
+          }
+        } else {
+          console.log(`[Ingestion] Workspace "${workspaceSlug}" already exists. Skipping creation to avoid duplicates.`);
+        }
+      } catch (wsError) {
+        console.warn("[Ingestion] Failed to verify/create workspace in AnythingLLM:", wsError);
+      }
+
+      // 3. Upload document file to AnythingLLM
+      console.log(`[Ingestion] Uploading file "${file.name}" to AnythingLLM...`);
+      const formData = new FormData();
+      const fileBlob = new Blob([buffer], { type: "application/pdf" });
+      formData.append("file", fileBlob, file.name);
+
+      const uploadResponse = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/document/upload`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`
+        },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`AnythingLLM file upload failed with status ${uploadResponse.status}`);
+      }
+
+      const uploadResult = await uploadResponse.json();
+      const docLocation = uploadResult.documents?.[0]?.location;
+      if (!docLocation) {
+        throw new Error("AnythingLLM upload did not return a valid document location");
+      }
+
+      // 4. Embed document into workspace
+      console.log(`[Ingestion] Embedding document into AnythingLLM workspace "${workspaceSlug}"...`);
+      const updateResponse = await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/${workspaceSlug}/update-embeddings`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          adds: [docLocation]
+        })
+      });
+
+      if (!updateResponse.ok) {
+        throw new Error(`AnythingLLM workspace update failed with status ${updateResponse.status}`);
+      }
+
+      // 5. Update database status to COMPLETED
+      await prisma.document.update({
+        where: { id: doc.id },
+        data: { status: "COMPLETED" }
+      });
+      console.log(`[Ingestion] Document "${doc.name}" successfully embedded and marked COMPLETED!`);
+    } catch (error) {
+      console.error(`[Ingestion] Failed to ingest document "${doc.name}":`, error);
+      // Update database status to FAILED
+      await prisma.document.update({
+        where: { id: doc.id },
+        data: { status: "FAILED" }
+      }).catch((dbErr) => {
+        console.error("[Ingestion] Failed to mark document status as FAILED in DB:", dbErr);
+      });
+    }
+  });
 
   return c.json({
     success: true,
@@ -417,6 +604,41 @@ export async function deleteDocumentHandler(c: Context) {
     await removeFileIfExists(originalFilePath);
     await removeChunkFiles(documentId!);
     await DocumentRepository.delete(documentId!);
+
+    // Sync delete with AnythingLLM
+    try {
+      const fileName = document.fileUrl.split("/").pop();
+      const anythingLLMLocation = `custom-documents/${fileName}`;
+      const workspaceSlug = document.course.code.toLowerCase();
+
+      // 1. Remove from workspace
+      console.log(`[Deletion] Syncing Document Deletion: Removing "${anythingLLMLocation}" from AnythingLLM workspace "${workspaceSlug}"...`);
+      await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/workspace/${workspaceSlug}/update-embeddings`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          deletes: [anythingLLMLocation]
+        })
+      });
+
+      // 2. Remove from system completely
+      console.log(`[Deletion] Syncing Document Deletion: Purging "${anythingLLMLocation}" from AnythingLLM system...`);
+      await fetch(`${ENV.ANYTHING_LLM_URL}/api/v1/system/remove-documents`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${ENV.ANYTHING_LLM_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          names: [anythingLLMLocation]
+        })
+      });
+    } catch (llmError) {
+      console.error("[Deletion] Failed to sync document deletion with AnythingLLM:", llmError);
+    }
 
     return c.json({ success: true });
   } catch (error: any) {

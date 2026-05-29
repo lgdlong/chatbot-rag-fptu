@@ -41,6 +41,32 @@ export class GeminiService {
     }
   }
 
+  public static async generateSelfQuery(query: string): Promise<{ search: string; chapter: string | null }> {
+    const ai = this.getSdk()
+    const prompt = `Bạn là hệ thống bóc tách siêu dữ liệu tìm kiếm. Đọc câu hỏi sau và trả về ĐÚNG MỘT khối JSON (không dùng định dạng markdown \`\`\`json) với 2 trường:
+{
+  "search": "từ khóa lõi ngắn gọn để vector search",
+  "chapter": "số chương (vd: '1', '2') nếu nhắc đến chương cụ thể, null nếu không"
+}
+Câu hỏi: "${query}"`
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite',
+        contents: prompt,
+        config: { temperature: 0.1 }
+      })
+      const text = response.text?.replace(/```json/gi, '').replace(/```/gi, '').trim() || '{}'
+      const parsed = JSON.parse(text)
+      return {
+        search: parsed.search || query,
+        chapter: parsed.chapter ? String(parsed.chapter) : null
+      }
+    } catch (error) {
+      console.error('[Gemini] SelfQuery parsing error:', error)
+      return { search: query, chapter: null }
+    }
+  }
+
   /**
    * Sinh câu trả lời Streaming từ context tài liệu (RAG Prompt)
    */
