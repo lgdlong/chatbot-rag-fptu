@@ -40,6 +40,7 @@ export interface StreamCitation {
     page: number;
     documentId?: string;
     isDeleted?: boolean;
+    fileUrl?: string | null;
 }
 
 export const chatApi = {

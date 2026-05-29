@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useSearchParams, useRouter } from "next/navigation";
-import { api, streamChat } from "@/lib/api";
+import { api, streamChat, API_BASE_URL } from "@/lib/api";
 import type { ChatMessage, Citation, DocumentCatalogGroup } from "@/types";
 import type { ChatSessionDetailsResponse, StreamCitation, CreateChatSessionInput, DocumentCatalogResponse } from "@/api/chat";
 import {
@@ -35,6 +35,7 @@ import {
     IconInfoCircle,
     IconSearch,
 } from "@tabler/icons-react";
+import ReactMarkdown from "react-markdown";
 
 type ChatRowCitation = Citation | StreamCitation;
 
@@ -522,29 +523,104 @@ function ChatRoomContent() {
                                                                 <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce [animation-delay:0.4s]" />
                                                             </Group>
                                                         ) : (
-                                                            <Text size="sm" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.6 }}>
-                                                                {item.content}
-                                                            </Text>
+                                                            <Box className="text-sm leading-normal max-w-none break-words">
+                                                                <ReactMarkdown
+                                                                    components={{
+                                                                        p: ({ node, ...props }) => <p className="mb-1.5 last:mb-0 leading-normal" {...props} />,
+                                                                        ul: ({ node, ...props }) => <ul className="list-disc pl-5 mb-1.5 last:mb-0 space-y-0.5" {...props} />,
+                                                                        ol: ({ node, ...props }) => <ol className="list-decimal pl-5 mb-1.5 last:mb-0 space-y-0.5" {...props} />,
+                                                                        li: ({ node, ...props }) => <li className="text-zinc-100 mb-0.5" {...props} />,
+                                                                        strong: ({ node, ...props }) => <strong className="font-semibold text-zinc-100" {...props} />,
+                                                                        code: ({ node, ...props }) => <code className="bg-zinc-800 px-1 py-0.5 rounded text-xs font-mono text-indigo-300" {...props} />,
+                                                                    }}
+                                                                >
+                                                                    {item.content}
+                                                                </ReactMarkdown>
+                                                            </Box>
                                                         )}
                                                     </Paper>
 
                                                     {!isUser && citations.length > 0 && (
-                                                        <Group gap="xs" wrap="wrap" style={{ paddingLeft: 4 }}>
-                                                            {citations.map((cite, i) => (
-                                                                <Badge
-                                                                    key={i}
-                                                                    variant="outline"
-                                                                    color="gray"
-                                                                    radius="xs"
-                                                                    size="xs"
-                                                                    leftSection={<IconBook size={10} color="var(--mantine-color-indigo-4)" />}
-                                                                    style={{ textTransform: 'none', cursor: 'default' }}
-                                                                    title={cite.documentName}
-                                                                >
-                                                                    {cite.documentName.split("_").slice(1).join("_") || cite.documentName} (Trang {cite.page})
-                                                                </Badge>
-                                                            ))}
-                                                        </Group>
+                                                        <Stack gap="xs" mt="xs" style={{ paddingLeft: 4 }}>
+                                                            <Text size="xs" fw={500} style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#a1a1aa' }}>
+                                                                <IconBook size={12} color="var(--mantine-color-indigo-4)" />
+                                                                Tài liệu đối chiếu tham khảo:
+                                                            </Text>
+                                                            <Group gap="xs" wrap="wrap">
+                                                                {citations.map((cite, i) => {
+                                                                    const rawName = cite.documentName || "";
+                                                                    const parts = rawName.split("_");
+                                                                    const displayName = (parts.length > 1 && /^\d{10,13}$/.test(parts[0]))
+                                                                        ? parts.slice(1).join("_")
+                                                                        : rawName;
+                                                                        
+                                                                    const fullFileUrl = cite.fileUrl 
+                                                                        ? (cite.fileUrl.startsWith('http') ? cite.fileUrl : `${API_BASE_URL}${cite.fileUrl}`)
+                                                                        : null;
+
+                                                                    if (fullFileUrl) {
+                                                                        return (
+                                                                            <Tooltip 
+                                                                                key={i}
+                                                                                label="Nhấp để mở/đọc file PDF này" 
+                                                                                position="top" 
+                                                                                withArrow
+                                                                            >
+                                                                                <Paper
+                                                                                    component="a"
+                                                                                    href={fullFileUrl}
+                                                                                    target="_blank"
+                                                                                    rel="noopener noreferrer"
+                                                                                    radius="sm"
+                                                                                    px="sm"
+                                                                                    py="xs"
+                                                                                    style={{
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center',
+                                                                                        gap: '8px',
+                                                                                        textDecoration: 'none',
+                                                                                        backgroundColor: 'rgba(99, 102, 241, 0.05)',
+                                                                                        border: '1px solid rgba(99, 102, 241, 0.15)',
+                                                                                        cursor: 'pointer',
+                                                                                        transition: 'all 0.2s ease',
+                                                                                    }}
+                                                                                    className="hover:bg-[rgba(99,102,241,0.12)] hover:border-[rgba(99,102,241,0.3)] hover:-translate-y-0.5 active:translate-y-0"
+                                                                                >
+                                                                                    <IconBook size={13} color="#818cf8" style={{ flexShrink: 0 }} />
+                                                                                    <Text size="xs" fw={500} c="indigo.3" style={{ maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                                        {displayName}
+                                                                                    </Text>
+                                                                                    <Badge size="xs" variant="light" color="indigo" radius="xs" style={{ height: '16px', fontSize: '9px', padding: '0 4px', textTransform: 'none', cursor: 'pointer' }}>
+                                                                                        Xem PDF
+                                                                                    </Badge>
+                                                                                </Paper>
+                                                                            </Tooltip>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <Paper
+                                                                            key={i}
+                                                                            radius="sm"
+                                                                            px="sm"
+                                                                            py="xs"
+                                                                            style={{
+                                                                                display: 'inline-flex',
+                                                                                alignItems: 'center',
+                                                                                gap: '8px',
+                                                                                backgroundColor: 'rgba(39, 39, 42, 0.5)',
+                                                                                border: '1px solid rgba(63, 63, 70, 0.7)',
+                                                                            }}
+                                                                        >
+                                                                            <IconBook size={13} color="#a1a1aa" style={{ flexShrink: 0 }} />
+                                                                            <Text size="xs" fw={500} style={{ maxWidth: '280px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#d4d4d8' }}>
+                                                                                {displayName}
+                                                                            </Text>
+                                                                        </Paper>
+                                                                    );
+                                                                })}
+                                                            </Group>
+                                                        </Stack>
                                                     )}
                                                 </Stack>
                                             </Group>

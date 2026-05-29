@@ -77,6 +77,7 @@ export interface Citation {
     page: number;
     text?: string;
     isDeleted?: boolean;
+    fileUrl?: string | null;
 }
 
 export interface ChatMessage {

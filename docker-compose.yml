@@ -1,3 +1,5 @@
+name: chatbot-rag-fptu
+
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -21,6 +23,18 @@ services:
     volumes:
       - redis_data:/data
 
+  anythingllm:
+    image: mintplexlabs/anythingllm
+    container_name: anythingllm
+    restart: always
+    ports:
+      - "3003:3001"
+    environment:
+      - STORAGE_DIR=/app/server/storage
+    volumes:
+      - anythingllm_storage:/app/server/storage
+
 volumes:
   postgres_data:
   redis_data:
+  anythingllm_storage:

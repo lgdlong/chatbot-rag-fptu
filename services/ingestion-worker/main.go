@@ -1,4 +1,6 @@
+// DEPRECATED: File này nên được xóa và không được sử dụng nữa vì hệ thống đã chuyển sang tích hợp trực tiếp AnythingLLM RAG.
 package main
+
 
 import (
 	"bytes"
@@ -150,8 +152,24 @@ func processDocument(payload JobPayload, db *sql.DB) error {
 		// Chuyển sang Base64
 		pageBase64 := base64.StdEncoding.EncodeToString(pageBytes)
 
+		// 1.5 Trích xuất Metadata qua Gemini Flash
+		metadataJSON, err := extractMetadataWithRetry(pageBase64)
+		if err != nil {
+			log.Printf("[Worker] Failed to extract metadata on page %d, fallback to empty: %v", pageNumber, err)
+			metadataJSON = "{}"
+		}
+
+		// Parse metadata to extract summary for embedding context
+		var metadata struct {
+			Summary string `json:"summary"`
+		}
+		summaryText := ""
+		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err == nil {
+			summaryText = metadata.Summary
+		}
+
 		// 2. Tạo Embedding qua Gemini API với cơ chế retry Exponential Backoff
-		vector, err := generateEmbeddingWithRetry(pageBase64, payload.DocumentName, pageNumber)
+		vector, err := generateEmbeddingWithRetry(pageBase64, payload.DocumentName, pageNumber, summaryText)
 		if err != nil {
 			return fmt.Errorf("gemini embedding error on page %d: %v", pageNumber, err)
 		}
@@ -165,9 +183,9 @@ func processDocument(payload JobPayload, db *sql.DB) error {
 		// Insert vào PostgreSQL (Bảng document_chunks)
 		chunkId := uuid.NewString()
 		_, err = db.Exec(`
-			INSERT INTO document_chunks (id, document_id, content, page_number, embedding)
-			VALUES ($1, $2, $3, $4, $5)
-		`, chunkId, payload.DocumentId, "", pageNumber, string(vectorJSON))
+			INSERT INTO document_chunks (id, document_id, content, page_number, metadata, embedding)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, chunkId, payload.DocumentId, "", pageNumber, metadataJSON, string(vectorJSON))
 		if err != nil {
 			return fmt.Errorf("postgres insert error on page %d: %v", pageNumber, err)
 		}
@@ -180,7 +198,7 @@ func processDocument(payload JobPayload, db *sql.DB) error {
 	return nil
 }
 
-func generateEmbeddingWithRetry(base64Data string, docName string, page int) ([]float32, error) {
+func generateEmbeddingWithRetry(base64Data string, docName string, page int, summaryText string) ([]float32, error) {
 	geminiKey := os.Getenv("GEMINI_API_KEY")
 	if geminiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY environment variable is empty")
@@ -191,12 +209,17 @@ func generateEmbeddingWithRetry(base64Data string, docName string, page int) ([]
 
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=%s", geminiKey)
 
+	contextStr := fmt.Sprintf("Document: %s | Page: %d", docName, page)
+	if summaryText != "" {
+		contextStr = fmt.Sprintf("%s | Summary: %s", contextStr, summaryText)
+	}
+
 	payloadMap := map[string]interface{}{
 		"model": "models/gemini-embedding-2",
 		"content": map[string]interface{}{
 			"parts": []interface{}{
 				map[string]interface{}{
-					"text": fmt.Sprintf("Document: %s | Page: %d", docName, page),
+					"text": contextStr,
 				},
 				map[string]interface{}{
 					"inlineData": map[string]interface{}{
@@ -266,6 +289,105 @@ func generateEmbeddingWithRetry(base64Data string, docName string, page int) ([]
 	}
 
 	return nil, fmt.Errorf("failed to generate embedding after retries")
+}
+
+func extractMetadataWithRetry(base64Data string) (string, error) {
+	geminiKey := os.Getenv("GEMINI_API_KEY")
+	if geminiKey == "" {
+		return "", fmt.Errorf("GEMINI_API_KEY environment variable is empty")
+	}
+
+	maxRetries := 3
+	baseDelayMs := 2000.0
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", geminiKey)
+
+	payloadMap := map[string]interface{}{
+		"contents": []interface{}{
+			map[string]interface{}{
+				"parts": []interface{}{
+					map[string]interface{}{
+						"text": "Bạn là chuyên gia phân tích tài liệu học thuật. Hãy đọc nội dung trang tài liệu này và trả về định dạng JSON thuần túy gồm 2 trường: `chapter` (số hoặc tên chương, nếu không rõ thì để null) và `summary` (tóm tắt ngắn gọn nội dung chính của trang này trong 2-3 câu). Trả về duy nhất JSON, không dùng ```json",
+					},
+					map[string]interface{}{
+						"inlineData": map[string]interface{}{
+							"mimeType": "application/pdf",
+							"data":     base64Data,
+						},
+					},
+				},
+			},
+		},
+		"generationConfig": map[string]interface{}{
+			"temperature": 0.2,
+		},
+	}
+
+	payloadBytes, err := json.Marshal(payloadMap)
+	if err != nil {
+		return "", err
+	}
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			if attempt < maxRetries {
+				delay := time.Duration(baseDelayMs*math.Pow(2, float64(attempt))) * time.Millisecond
+				time.Sleep(delay)
+				continue
+			}
+			return "", err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 429 && attempt < maxRetries {
+			delay := time.Duration(baseDelayMs*math.Pow(2, float64(attempt))) * time.Millisecond
+			time.Sleep(delay)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			return "", fmt.Errorf("gemini api returned status %d: %s", resp.StatusCode, string(bodyBytes))
+		}
+
+		var result struct {
+			Candidates []struct {
+				Content struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"content"`
+			} `json:"candidates"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+			return "", err
+		}
+
+		if len(result.Candidates) > 0 && len(result.Candidates[0].Content.Parts) > 0 {
+			text := result.Candidates[0].Content.Parts[0].Text
+			// Remove potential markdown wrappers
+			if len(text) > 7 && text[:7] == "```json" {
+				text = text[7:]
+				if len(text) > 3 && text[len(text)-3:] == "```" {
+					text = text[:len(text)-3]
+				}
+			}
+			return text, nil
+		}
+
+		return "", fmt.Errorf("gemini api response does not contain valid content")
+	}
+
+	return "", fmt.Errorf("failed to extract metadata after retries")
 }
 
 func updateDocumentStatus(docId string, status string, errorMessage string) {
