@@ -1,9 +1,9 @@
 import { Hono } from "hono";
 import { prisma } from "./services/db.service.js";
 import { auth } from "./auth.js";
-import crypto from "node:crypto";
 
 export const lecturerAdminRouter = new Hono();
+const lecturerEmailPattern = /^[^\s@]+@fpt\.edu\.vn$/i;
 
 // Helper kiểm tra quyền Admin
 async function checkAdmin(c: any) {
@@ -16,10 +16,17 @@ async function checkAdmin(c: any) {
 
 // 1. Giảng viên gửi yêu cầu cấp tài khoản (Không cần đăng nhập)
 lecturerAdminRouter.post("/lecturer-request", async (c) => {
-  const { name, email, reason } = await c.req.json();
+  const payload = await c.req.json();
+  const name = String(payload?.name ?? "").trim();
+  const email = String(payload?.email ?? "").trim().toLowerCase();
+  const reason = String(payload?.reason ?? "").trim();
 
   if (!name || !email || !reason) {
     return c.json({ error: "Name, email, and reason are required" }, 400);
+  }
+
+  if (!lecturerEmailPattern.test(email)) {
+    return c.json({ error: "Only @fpt.edu.vn emails are allowed for lecturer requests" }, 400);
   }
 
   try {
@@ -34,8 +41,8 @@ lecturerAdminRouter.post("/lecturer-request", async (c) => {
         name,
         email,
         reason,
-        status: "PENDING"
-      }
+        status: "PENDING",
+      },
     });
 
     return c.json({ success: true, request });
@@ -81,49 +88,41 @@ lecturerAdminRouter.post("/admin/lecturer-requests/:requestId/approve", async (c
       return c.json({ error: "Request is already processed" }, 400);
     }
 
-    // 1. Tạo tài khoản User với role LECTURER
-    const userId = crypto.randomUUID();
-    const tempPassword = `Lecturer@${crypto.randomInt(100000, 999999)}`; // Mật khẩu tạm thời
-    
-    // Hash mật khẩu theo định dạng của Better Auth (salt:pbkdf2)
-    const salt = crypto.randomBytes(16).toString("hex");
-    const hash = crypto.pbkdf2Sync(tempPassword, salt, 1000, 64, "sha512").toString("hex");
-    const passwordHash = `${salt}:${hash}`;
+    const existingUser = await prisma.user.findUnique({ where: { email: request.email } });
+    if (existingUser) {
+      return c.json({ error: "Email is already registered in the system" }, 409);
+    }
+
+    const temporaryPassword = `Lecturer@${Math.floor(100000 + Math.random() * 900000)}`;
+    const signUpResult = await auth.api.signUpEmail({
+      body: {
+        name: request.name,
+        email: request.email,
+        password: temporaryPassword,
+      },
+    });
 
     await prisma.$transaction([
-      prisma.user.create({
+      prisma.user.update({
+        where: { id: signUpResult.user.id },
         data: {
-          id: userId,
-          name: request.name,
-          email: request.email,
           role: "LECTURER",
-        }
-      }),
-      prisma.account.create({
-        data: {
-          id: crypto.randomUUID(),
-          accountId: userId,
-          providerId: "credential",
-          userId: userId,
-          password: passwordHash,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
+          emailVerified: true,
+        },
       }),
       prisma.lecturerRequest.update({
         where: { id: requestId },
-        data: { status: "APPROVED" }
-      })
+        data: { status: "APPROVED" },
+      }),
     ]);
 
-    // Trả về mật khẩu tạm thời cho Admin hiển thị/demo
     return c.json({
       success: true,
       message: "Lecturer account created successfully",
       credentials: {
         email: request.email,
-        temporaryPassword: tempPassword
-      }
+        temporaryPassword,
+      },
     });
   } catch (err: any) {
     return c.json({ error: err.message || "Failed to approve request" }, 500);
@@ -139,10 +138,16 @@ lecturerAdminRouter.post("/admin/lecturer-requests/:requestId/reject", async (c)
   const requestId = c.req.param("requestId");
 
   try {
-    await prisma.lecturerRequest.update({
-      where: { id: requestId },
-      data: { status: "REJECTED" }
-    });
+    const request = await prisma.lecturerRequest.findUnique({ where: { id: requestId } });
+    if (!request) {
+      return c.json({ error: "Request not found" }, 404);
+    }
+
+    if (request.status !== "PENDING") {
+      return c.json({ error: "Request is already processed" }, 400);
+    }
+
+    await prisma.lecturerRequest.update({ where: { id: requestId }, data: { status: "REJECTED" } });
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message || "Failed to reject request" }, 500);

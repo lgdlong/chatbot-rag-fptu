@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Center, Divider, Paper, PasswordInput, Text, TextInput, Title, Alert, Stack, Collapse } from '@mantine/core';
+import { Anchor, Button, Center, Divider, Paper, PasswordInput, Text, TextInput, Title, Alert, Stack, Collapse } from '@mantine/core';
 import { IconBrandGoogle, IconAlertCircle, IconCode } from '@tabler/icons-react';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { api } from '@/lib/api';
 import type { DevLoginAccount } from '@/constants';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useForm } from '@tanstack/react-form';
 
@@ -108,6 +109,12 @@ export default function LoginPage() {
                 </Title>
                 <Text c="dimmed" size="sm" ta="center" mb="xl">
                     Đăng nhập để tiếp tục tra cứu tài liệu
+                </Text>
+                <Text c="dimmed" size="xs" ta="center" mb="lg">
+                    Chưa có tài khoản giảng viên?{' '}
+                    <Anchor component={Link} href="/lecturer-request" c="indigo.3">
+                        Gửi yêu cầu cấp tài khoản
+                    </Anchor>
                 </Text>
 
                 {error && (
