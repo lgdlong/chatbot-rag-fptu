@@ -404,23 +404,14 @@ function ChatRoomContent() {
                                         </Text>
                                     </div>
 
-                                    <Group gap="xs" justify="center">
-                                        <Button
-                                            leftSection={<IconBook size={14} />}
-                                            onClick={() => setPickerOpened(true)}
-                                            radius="xs"
-                                            color="indigo"
-                                        >
-                                            Mở catalog tài liệu
-                                        </Button>
-                                        <Button
-                                            variant="light"
-                                            radius="xs"
-                                            onClick={() => setPickerOpened(true)}
-                                        >
-                                            Chọn tài liệu
-                                        </Button>
-                                    </Group>
+                                    <Button
+                                        leftSection={<IconBook size={14} />}
+                                        onClick={() => setPickerOpened(true)}
+                                        radius="xs"
+                                        color="indigo"
+                                    >
+                                      Chọn tài liệu
+                                    </Button>
 
                                     <Text size="xs" c="dimmed">
                                         Đã chọn {selectedDocumentIds.length} tài liệu từ {selectedCourseIds.length} môn.
