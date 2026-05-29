@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth'
 import { prismaAdapter } from 'better-auth/adapters/prisma'
 import { prisma } from './services/db.service.js'
 import { admin } from 'better-auth/plugins/admin'
+import { adminAc, userAc } from 'better-auth/plugins/admin/access'
 import { openAPI } from 'better-auth/plugins'
 import { ENV } from '../../config/env.js'
 
@@ -23,6 +24,13 @@ export const auth = betterAuth({
   plugins: [
     admin({
       adminRoles: ['ADMIN'],
+      roles: {
+        ADMIN: adminAc,
+        LECTURER: userAc,
+        STUDENT: userAc,
+        admin: adminAc,
+        user: userAc,
+      },
     }),
     openAPI(),
   ],
