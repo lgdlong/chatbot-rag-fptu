@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Anchor, Button, Center, Divider, Paper, PasswordInput, Text, TextInput, Title, Alert, Stack, Collapse } from '@mantine/core';
-import { IconBrandGoogle, IconAlertCircle, IconCode } from '@tabler/icons-react';
+import { IconAlertCircle, IconCode } from '@tabler/icons-react'; // IconBrandGoogle tạm thời được bỏ để tránh unused warning
 import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
+// import { notifications } from '@mantine/notifications'; // Tạm thời comment vì chỉ sử dụng trong đăng nhập Google
 import { api } from '@/lib/api';
 import type { DevLoginAccount } from '@/constants';
 import Link from 'next/link';
@@ -123,6 +123,12 @@ export default function LoginPage() {
                     </Alert>
                 )}
 
+                {/* 
+                    [CHÚ THÍCH CẤU HÌNH]
+                    Chức năng đăng nhập Google tạm thời được ẩn đi theo yêu cầu.
+                    Code JSX được bình luận lại để tránh nhầm lẫn cho người dùng và có thể khôi phục nhanh chóng khi cần thiết.
+                    
+                    Cách khôi phục: Chỉ cần bỏ khối comment này ra.
                 <Button
                     fullWidth
                     leftSection={<IconBrandGoogle size="1.2rem" />}
@@ -140,6 +146,7 @@ export default function LoginPage() {
                 >
                     Đăng nhập với Google
                 </Button>
+                */}
 
                 <Divider label="Hoặc đăng nhập bằng Email" labelPosition="center" my="lg" />
 
