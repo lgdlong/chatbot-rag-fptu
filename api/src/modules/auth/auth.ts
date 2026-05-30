@@ -15,12 +15,16 @@ export const auth = betterAuth({
     enabled: true,
     allowedDomains: ["@fpt.edu.vn", "@gmail.com"],
   },
+  // Chức năng đăng nhập Google tạm thời vô hiệu hóa theo yêu cầu.
+  // Code cấu hình gốc được lưu lại bên dưới dưới dạng bình luận để tham khảo/sử dụng lại trong tương lai.
+  /*
   socialProviders: {
     google: {
       clientId: ENV.GOOGLE_CLIENT_ID,
       clientSecret: ENV.GOOGLE_CLIENT_SECRET,
     },
   },
+  */
   plugins: [
     admin({
       adminRoles: ['ADMIN'],
